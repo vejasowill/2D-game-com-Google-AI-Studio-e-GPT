@@ -1,0 +1,6 @@
+{
+  "name": "Open World 2D Game",
+  "description": "A 2D top-down open-world game built with TypeScript and HTML5 Canvas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
