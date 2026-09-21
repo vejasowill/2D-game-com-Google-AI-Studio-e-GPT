@@ -1,5 +1,6 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
+import { Player } from './Player.ts';
 import { World } from './World.ts';
 import { TileType, ViewportSize } from './types.ts';
 
@@ -9,10 +10,12 @@ export class Renderer {
   private width: number = 0;
   private height: number = 0;
 
-  // Estilo visual inicial do terreno
+  // Estilo visual inicial do terreno e do jogador
   private readonly clearColor: string = '#121316';
   private readonly grassColor: string = '#2e7d32';
   private readonly tileBorderColor: string = '#256629';
+  private readonly playerColor: string = '#3b82f6';
+  private readonly playerBorderColor: string = '#1d4ed8';
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -49,7 +52,7 @@ export class Renderer {
   /**
    * Transforma os dados do World em pixels na tela através da Camera
    */
-  public render(world: World, camera: Camera): void {
+  public render(world: World, camera: Camera, player: Player): void {
     // 1. Limpar fundo escuro
     this.ctx.fillStyle = this.clearColor;
     this.ctx.fillRect(0, 0, this.width, this.height);
@@ -99,6 +102,34 @@ export class Renderer {
           );
         }
       }
+    }
+
+    // 3. Renderizar o Player através da projeção da câmera
+    const playerScreenCoord = camera.worldToScreen(player.position, viewport);
+
+    // Frustum culling para o Player
+    if (
+      playerScreenCoord.screenX + player.size >= 0 &&
+      playerScreenCoord.screenX <= this.width &&
+      playerScreenCoord.screenY + player.size >= 0 &&
+      playerScreenCoord.screenY <= this.height
+    ) {
+      this.ctx.fillStyle = this.playerColor;
+      this.ctx.fillRect(
+        playerScreenCoord.screenX,
+        playerScreenCoord.screenY,
+        player.size,
+        player.size,
+      );
+
+      this.ctx.strokeStyle = this.playerBorderColor;
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(
+        playerScreenCoord.screenX + 0.5,
+        playerScreenCoord.screenY + 0.5,
+        player.size - 1,
+        player.size - 1,
+      );
     }
   }
 

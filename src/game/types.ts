@@ -35,6 +35,14 @@ export interface Vector2D {
   y: number;
 }
 
+/**
+ * Interface abstrata para provedores de entrada (Teclado, Toque, Joystick Virtual, etc.)
+ */
+export interface InputSource {
+  getMovementDirection(): Vector2D;
+  destroy?(): void;
+}
+
 export interface ViewportSize {
   width: number;
   height: number;

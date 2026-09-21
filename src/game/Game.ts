@@ -1,11 +1,17 @@
+import { PLAYER_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { GameLoop } from './GameLoop.ts';
+import { Input } from './Input.ts';
+import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { World } from './World.ts';
+import { WorldCoord } from './types.ts';
 
 export class Game {
   private world: World;
   private camera: Camera;
+  private player: Player;
+  private input: Input;
   private renderer: Renderer;
   private loop: GameLoop;
   private resizeObserver: ResizeObserver | null = null;
@@ -15,15 +21,27 @@ export class Game {
     // 1. Instanciar o World (dados dos tiles)
     this.world = new World();
 
-    // 2. Centralizar a Camera no centro lógico do mundo (calculado dinamicamente a partir de World e TILE_SIZE)
+    // 2. Calcular a posição inicial do Player centralizado no mundo (sem números mágicos)
     const worldCenterX = this.world.getWorldWidthInPixels() / 2;
     const worldCenterY = this.world.getWorldHeightInPixels() / 2;
-    this.camera = new Camera(worldCenterX, worldCenterY);
 
-    // 3. Instanciar o Renderer gráfico
+    const initialPlayerPosition: WorldCoord = {
+      worldX: worldCenterX - PLAYER_SIZE / 2,
+      worldY: worldCenterY - PLAYER_SIZE / 2,
+    };
+    this.player = new Player(initialPlayerPosition);
+
+    // 3. Instanciar a Camera centralizada no Player
+    const playerCenter = this.player.getCenter();
+    this.camera = new Camera(playerCenter.worldX, playerCenter.worldY);
+
+    // 4. Instanciar o subsistema de Input
+    this.input = new Input();
+
+    // 5. Instanciar o Renderer gráfico
     this.renderer = new Renderer(canvas);
 
-    // 4. Instanciar o GameLoop
+    // 6. Instanciar o GameLoop
     this.loop = new GameLoop({
       update: (dt: number) => this.update(dt),
       render: () => this.render(),
@@ -43,6 +61,8 @@ export class Game {
   public destroy(): void {
     this.stop();
 
+    this.input.destroy();
+
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -54,13 +74,19 @@ export class Game {
     }
   }
 
-  private update(_deltaTime: number): void {
-    // Atualizações de lógica do mundo (vazia nesta etapa conceitual)
+  private update(deltaTime: number): void {
+    // Ordem: GameLoop -> Input -> Player.update -> Camera
+    // 1. Atualizar o Player com o estado do Input e deltaTime
+    this.player.update(deltaTime, this.input);
+
+    // 2. Atualizar a Camera acompanhando a posição do Player
+    const playerCenter = this.player.getCenter();
+    this.camera.setPosition(playerCenter.worldX, playerCenter.worldY);
   }
 
   private render(): void {
-    // Renderiza o mundo através da câmera no canvas
-    this.renderer.render(this.world, this.camera);
+    // Renderiza o mundo e o jogador através da câmera no canvas
+    this.renderer.render(this.world, this.camera, this.player);
   }
 
   private setupResize(canvas: HTMLCanvasElement): void {
