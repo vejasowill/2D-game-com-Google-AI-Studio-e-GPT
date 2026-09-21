@@ -1,7 +1,6 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { Player } from './Player.ts';
-import { TileRegistry } from './TileRegistry.ts';
 import { World } from './World.ts';
 import { ViewportSize } from './types.ts';
 
@@ -28,18 +27,21 @@ export class Renderer {
 
   public resize(): void {
     const parent = this.canvas.parentElement;
-    const displayWidth = parent ? parent.clientWidth : window.innerWidth;
-    const displayHeight = parent ? parent.clientHeight : window.innerHeight;
+    const hasWindow = typeof window !== 'undefined';
+    const displayWidth = parent ? parent.clientWidth : (hasWindow ? window.innerWidth : (this.canvas.width || 800));
+    const displayHeight = parent ? parent.clientHeight : (hasWindow ? window.innerHeight : (this.canvas.height || 600));
 
     // Suporte a telas de alta densidade de pixels (Retina / mobile)
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = hasWindow && window.devicePixelRatio ? window.devicePixelRatio : 1;
     this.width = displayWidth;
     this.height = displayHeight;
 
     this.canvas.width = Math.floor(displayWidth * dpr);
     this.canvas.height = Math.floor(displayHeight * dpr);
-    this.canvas.style.width = `${displayWidth}px`;
-    this.canvas.style.height = `${displayHeight}px`;
+    if (this.canvas.style) {
+      this.canvas.style.width = `${displayWidth}px`;
+      this.canvas.style.height = `${displayHeight}px`;
+    }
 
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
@@ -94,9 +96,9 @@ export class Renderer {
           continue;
         }
 
-        // Passo 4: Desenhar o tile no Canvas de acordo com sua definição registrada
-        const tileDef = TileRegistry.get(tile.type);
-        this.ctx.fillStyle = tileDef.color;
+        // Passo 4: Desenhar o tile no Canvas de acordo com seu estilo visual resolvido
+        const visual = world.getTerrainVisualAt(tileX, tileY, tile.type);
+        this.ctx.fillStyle = visual.color;
         this.ctx.fillRect(
           screenCoord.screenX,
           screenCoord.screenY,
@@ -104,9 +106,9 @@ export class Renderer {
           TILE_SIZE,
         );
 
-        if (tileDef.borderColor) {
+        if (visual.borderColor) {
           // Contorno sutil para evidenciar a malha de tiles
-          this.ctx.strokeStyle = tileDef.borderColor;
+          this.ctx.strokeStyle = visual.borderColor;
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(
             screenCoord.screenX + 0.5,

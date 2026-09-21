@@ -1,5 +1,6 @@
 import { ChunkManager } from './ChunkManager.ts';
 import { Biome } from './Biome.ts';
+import { BiomeVisualRegistry, TerrainVisualDefinition } from './BiomeVisualRegistry.ts';
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { TileRegistry } from './TileRegistry.ts';
 import { EnvironmentalData, Tile, TileCoord, TileType, WorldCoord } from './types.ts';
@@ -43,6 +44,18 @@ export class World {
    */
   public getBiomeAt(tileX: number, tileY: number): Biome {
     return this.worldGenerator.getBiomeAt(tileX, tileY);
+  }
+
+  /**
+   * Resolve a aparência visual pura de um terreno a partir de sua coordenada global e de seu TileType físico.
+   * Função pura e direta: NUNCA materializa ou aloca chunks no ChunkManager.
+   *
+   * Fluxo:
+   * (tileX, tileY) -> Biome -> BiomeVisualRegistry.getVisual(biome, tileType) -> TerrainVisualDefinition
+   */
+  public getTerrainVisualAt(tileX: number, tileY: number, tileType: TileType): TerrainVisualDefinition {
+    const biome = this.worldGenerator.getBiomeAt(tileX, tileY);
+    return BiomeVisualRegistry.getVisual(biome, tileType);
   }
 
   /**
