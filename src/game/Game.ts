@@ -1,13 +1,25 @@
+import { TILE_SIZE } from './constants.ts';
+import { Camera } from './Camera.ts';
 import { GameLoop } from './GameLoop.ts';
 import { Renderer } from './Renderer.ts';
+import { World } from './World.ts';
 
 export class Game {
+  private world: World;
+  private camera: Camera;
   private renderer: Renderer;
   private loop: GameLoop;
   private resizeObserver: ResizeObserver | null = null;
   private handleWindowResize: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
+    this.world = new World();
+
+    // Centralizar câmera no mundo de tiles (coordenadas do mundo em pixels)
+    const worldPixelWidth = this.world.width * TILE_SIZE;
+    const worldPixelHeight = this.world.height * TILE_SIZE;
+    this.camera = new Camera(worldPixelWidth / 2, worldPixelHeight / 2);
+
     this.renderer = new Renderer(canvas);
 
     this.loop = new GameLoop({
@@ -41,13 +53,12 @@ export class Game {
   }
 
   private update(_deltaTime: number): void {
-    // Game logic update (state, entities, world simulation)
-    // Kept minimal for this initial validation step
+    // Atualizações de lógica do mundo (vazia nesta etapa conceitual)
   }
 
   private render(): void {
-    // Render layer pass
-    this.renderer.render();
+    // Renderiza o mundo através da câmera no canvas
+    this.renderer.render(this.world, this.camera);
   }
 
   private setupResize(canvas: HTMLCanvasElement): void {
