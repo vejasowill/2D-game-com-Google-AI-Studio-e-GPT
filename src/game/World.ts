@@ -88,6 +88,7 @@ export class World {
 
   /**
    * Localiza a coordenada de tile caminhável mais próxima a partir de um ponto de referência global (padrão: 0, 0).
+   * Consulta a função pura WorldGenerator.getTileTypeAt diretamente para não materializar chunks na memória.
    * Executa busca em anéis concêntricos determinísticos ao redor da origem.
    */
   public findNearestWalkableTile(
@@ -95,11 +96,9 @@ export class World {
     startTileY: number = 0,
   ): TileCoord {
     const isWalkable = (tx: number, ty: number): boolean => {
-      const tile = this.getTile(tx, ty);
-      if (!tile) {
-        return false;
-      }
-      const def = TileRegistry.get(tile.type);
+      // Consulta direta e pura ao WorldGenerator (sem instanciar chunks no ChunkManager)
+      const tileType = this.worldGenerator.getTileTypeAt(tx, ty);
+      const def = TileRegistry.get(tileType);
       return def.walkable;
     };
 

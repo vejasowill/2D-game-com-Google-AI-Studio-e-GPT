@@ -102,7 +102,7 @@ export class CollisionSystem {
         return false;
       }
 
-      const tile = this.world.getTile(coord.tileX, coord.tileY);
+      const tile = this.world.getLoadedTile(coord.tileX, coord.tileY);
       if (!tile) {
         return false;
       }

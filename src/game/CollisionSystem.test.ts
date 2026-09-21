@@ -1,4 +1,5 @@
 import { DEFAULT_PLAYER_SPEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
+import { ChunkStreamingSystem } from './ChunkStreamingSystem.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
 import { Player } from './Player.ts';
 import { TileType } from './types.ts';
@@ -18,6 +19,8 @@ export function runCollisionTests(): void {
 
   // Teste 1: Área totalmente sobre GRASS é caminhável
   const spawnTile = world.findNearestWalkableTile();
+  // Assegurar carregamento do chunk do spawn (como o StreamingSystem faz)
+  world.getTile(spawnTile.tileX, spawnTile.tileY);
   const spawnWorld = world.tileToWorld(spawnTile);
   const centerWalkable = collision.canOccupyArea(
     spawnWorld.worldX + (TILE_SIZE - PLAYER_SIZE) / 2,
@@ -201,6 +204,116 @@ export function runCollisionTests(): void {
     'Player deve deslizar no eixo Y livre para baixo',
   );
   console.log('✓ Teste 11 passou: Movimento diagonal contra a água desliza pelo eixo livre');
+
+  // =========================================================================
+  // Testes Arquiteturais da Integração Streaming × Colisão:
+  // =========================================================================
+
+  // Teste 12: CollisionSystem NÃO gera chunks ao consultar área não carregada
+  const unmappedWorld = new World();
+  const unmappedCollision = new CollisionSystem(unmappedWorld);
+  const unmappedChunkManager = unmappedWorld.getChunkManager();
+  assert(unmappedChunkManager.getLoadedChunkCount() === 0, 'World novo deve possuir 0 chunks carregados');
+
+  const unmappedResult = unmappedCollision.canOccupyArea(5000, 5000, PLAYER_SIZE, PLAYER_SIZE);
+  assert(
+    unmappedResult === false,
+    'canOccupyArea em área não carregada deve retornar false (impassável)',
+  );
+  assert(
+    unmappedChunkManager.getLoadedChunkCount() === 0,
+    'CollisionSystem NUNCA deve gerar chunks em unmapped area (contagem deve permanecer 0)',
+  );
+  assert(
+    !unmappedChunkManager.hasChunk(9, 9),
+    'Chunk não deve ser gerado pelo CollisionSystem',
+  );
+  console.log('✓ Teste 12 passou: CollisionSystem não gera chunks ao consultar área não carregada');
+
+  // Teste 13: Chunks necessários ao movimento do Player são carregados pelo Streaming
+  const streamWorld = new World();
+  const streamManager = streamWorld.getChunkManager();
+  const streamSystem = new ChunkStreamingSystem(streamWorld);
+  const streamCollision = new CollisionSystem(streamWorld);
+
+  // Player iniciando no chunk (0,0)
+  const initialPos = { worldX: 200, worldY: 200 };
+  streamSystem.forceUpdate(initialPos);
+  assert(streamManager.hasChunk(0, 0), 'Chunk (0,0) deve ser carregado pelo Streaming');
+  assert(streamManager.hasChunk(1, 0), 'Chunk adjacente (1,0) deve ser carregado pelo Streaming');
+  console.log('✓ Teste 13 passou: Chunks necessários ao movimento do Player são carregados pelo Streaming');
+
+  // Teste 14: O Player consegue atravessar uma fronteira de chunk sem ficar preso artificialmente
+  // Colocar caminho garantido de grama entre chunk 0 e 1 (fronteira em x=512)
+  for (let ty = 0; ty <= 5; ty++) {
+    for (let tx = 14; tx <= 18; tx++) {
+      streamWorld.setTile(tx, ty, TileType.GRASS);
+    }
+  }
+  const crossPlayer = new Player({ worldX: 505, worldY: 64 }, DEFAULT_PLAYER_SPEED, PLAYER_SIZE);
+  // Simular passo do loop: streaming -> player move -> streaming
+  streamSystem.update(crossPlayer.position);
+  crossPlayer.update(0.1, { getMovementDirection: () => ({ x: 1, y: 0 }) }, streamCollision);
+  streamSystem.update(crossPlayer.position);
+  assert(
+    crossPlayer.position.worldX > 512,
+    `Player deve atravessar a fronteira do chunk para x > 512 sem ficar preso (pos: ${crossPlayer.position.worldX})`,
+  );
+  console.log('✓ Teste 14 passou: O Player consegue atravessar uma fronteira de chunk sem ficar preso artificialmente');
+
+  // Teste 15: O Player NÃO consegue atravessar terreno WATER apenas porque o chunk estava sendo carregado
+  // Colocar água imediatamente após a fronteira
+  streamWorld.setTile(18, 2, TileType.WATER);
+  const waterTargetWorldX = 18 * TILE_SIZE; // 576px
+  const waterBlockedPlayer = new Player(
+    { worldX: waterTargetWorldX - PLAYER_SIZE, worldY: 2 * TILE_SIZE },
+    DEFAULT_PLAYER_SPEED,
+    PLAYER_SIZE,
+  );
+  // Streaming prepara a área
+  streamSystem.update(waterBlockedPlayer.position);
+  // Movimento em direção à água
+  waterBlockedPlayer.update(0.2, { getMovementDirection: () => ({ x: 1, y: 0 }) }, streamCollision);
+  assert(
+    waterBlockedPlayer.position.worldX + waterBlockedPlayer.size <= waterTargetWorldX,
+    'Player não deve penetrar em terreno de WATER mesmo na fronteira de chunks',
+  );
+  console.log('✓ Teste 15 passou: O Player não consegue atravessar terreno WATER na fronteira');
+
+  // Teste 16: Coordenadas negativas continuam funcionando no CollisionSystem com dados carregados
+  streamWorld.setTile(-2, -2, TileType.GRASS);
+  streamWorld.setTile(-2, -3, TileType.WATER);
+  // Assegurar chunk carregado
+  streamManager.getOrCreateChunk(-1, -1);
+  const negGrassOccupied = streamCollision.canOccupyArea(
+    -2 * TILE_SIZE,
+    -2 * TILE_SIZE,
+    PLAYER_SIZE,
+    PLAYER_SIZE,
+  );
+  assert(negGrassOccupied === true, 'Coordenada negativa com GRASS carregado deve permitir ocupação');
+  const negWaterOccupied = streamCollision.canOccupyArea(
+    -2 * TILE_SIZE,
+    -3 * TILE_SIZE,
+    PLAYER_SIZE,
+    PLAYER_SIZE,
+  );
+  assert(negWaterOccupied === false, 'Coordenada negativa com WATER carregado deve bloquear ocupação');
+  console.log('✓ Teste 16 passou: Coordenadas negativas continuam funcionando');
+
+  // Teste 17: Nenhum sistema além do ChunkStreamingSystem provoca criação de chunks durante gameplay normal
+  const strictWorld = new World();
+  const strictManager = strictWorld.getChunkManager();
+  const strictCollision = new CollisionSystem(strictWorld);
+  const strictPlayer = new Player({ worldX: 100, worldY: 100 });
+
+  // Player se movimenta sem streaming em área não carregada
+  strictCollision.movePlayer(strictPlayer, { x: 1, y: 0 }, 1.0);
+  assert(
+    strictManager.getLoadedChunkCount() === 0,
+    'CollisionSystem e Player sozinhos NUNCA devem provocar criação de chunks',
+  );
+  console.log('✓ Teste 17 passou: Nenhum sistema além do ChunkStreamingSystem provoca criação de chunks');
 
   console.log('[TEST] Todos os testes do CollisionSystem foram concluídos com sucesso!');
 }

@@ -44,6 +44,7 @@ export class WorldObjectManager {
 
   /**
    * Adiciona um WorldObject ao armazenamento espacial.
+   * Cria uma cópia defensiva da posição para proteger a invariância do índice espacial.
    * Retorna true se adicionado com sucesso, ou false se um objeto com o mesmo ID já existir.
    */
   public addObject(object: WorldObject): boolean {
@@ -51,10 +52,16 @@ export class WorldObjectManager {
       return false;
     }
 
-    this.objectsById.set(object.id, object);
+    // Proteger contra mutações externas criando objeto com posição defensiva
+    const internalObject: WorldObject = {
+      ...object,
+      position: { worldX: object.position.worldX, worldY: object.position.worldY },
+    };
+
+    this.objectsById.set(internalObject.id, internalObject);
 
     // Indexar nas células espaciais tocadas pelo AABB do objeto
-    const touchedChunks = this.getChunksTouchedByObject(object);
+    const touchedChunks = this.getChunksTouchedByObject(internalObject);
     for (const chunkCoord of touchedChunks) {
       const key = WorldObjectManager.getChunkKey(chunkCoord.chunkX, chunkCoord.chunkY);
       let set = this.chunkIndex.get(key);
@@ -62,9 +69,86 @@ export class WorldObjectManager {
         set = new Set<string>();
         this.chunkIndex.set(key, set);
       }
-      set.add(object.id);
+      set.add(internalObject.id);
     }
 
+    return true;
+  }
+
+  /**
+   * Move um WorldObject de forma atômica e atualiza seu índice espacial.
+   *
+   * Requisitos atendidos:
+   * - Localiza o objeto pelo ID;
+   * - Descobre as células/chunks antigas e as novas células tocadas;
+   * - Se o conjunto de chunks não mudar, apenas atualiza a posição do objeto (otimização);
+   * - Se mudar, remove o ID das células antigas que não são mais tocadas e adiciona nas novas;
+   * - Preserva a integridade do índice mesmo com coordenadas negativas ou fronteiras de chunks;
+   * - Impede referências duplicadas ou referências fantasmas obsoletas no índice;
+   * - Retorna true se o objeto foi encontrado e movido, ou false se não existir.
+   */
+  public moveObject(id: string, newPosition: WorldCoord): boolean {
+    const object = this.objectsById.get(id);
+    if (!object) {
+      return false;
+    }
+
+    const oldChunks = this.getChunksTouchedByObject(object);
+    const oldKeys = new Set(
+      oldChunks.map((c) => WorldObjectManager.getChunkKey(c.chunkX, c.chunkY)),
+    );
+
+    // Atualizar posição de forma atômica
+    const updatedObject: WorldObject = {
+      ...object,
+      position: { worldX: newPosition.worldX, worldY: newPosition.worldY },
+    };
+
+    const newChunks = this.getChunksTouchedByObject(updatedObject);
+    const newKeys = new Set(
+      newChunks.map((c) => WorldObjectManager.getChunkKey(c.chunkX, c.chunkY)),
+    );
+
+    // Verificar se houve alteração nos chunks tocados
+    let chunksChanged = oldKeys.size !== newKeys.size;
+    if (!chunksChanged) {
+      for (const k of oldKeys) {
+        if (!newKeys.has(k)) {
+          chunksChanged = true;
+          break;
+        }
+      }
+    }
+
+    if (chunksChanged) {
+      // Remover das células antigas que não estão mais presentes
+      for (const oldKey of oldKeys) {
+        if (!newKeys.has(oldKey)) {
+          const set = this.chunkIndex.get(oldKey);
+          if (set) {
+            set.delete(id);
+            if (set.size === 0) {
+              this.chunkIndex.delete(oldKey);
+            }
+          }
+        }
+      }
+
+      // Adicionar às novas células
+      for (const newKey of newKeys) {
+        if (!oldKeys.has(newKey)) {
+          let set = this.chunkIndex.get(newKey);
+          if (!set) {
+            set = new Set<string>();
+            this.chunkIndex.set(newKey, set);
+          }
+          set.add(id);
+        }
+      }
+    }
+
+    // Atualizar o registro do objeto
+    this.objectsById.set(id, updatedObject);
     return true;
   }
 

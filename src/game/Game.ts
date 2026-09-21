@@ -81,16 +81,20 @@ export class Game {
 
   private update(deltaTime: number): void {
     // Ordem arquitetural:
-    // GameLoop -> Input -> Player.update(dt, input, collisionSystem) -> ChunkStreamingSystem -> Camera -> Renderer
+    // GameLoop -> Input -> ChunkStreamingSystem (prepara chunks) -> Player.update(dt, input, collisionSystem) -> ChunkStreamingSystem (se cruzou fronteira) -> Camera -> Renderer
 
-    // 1. Atualizar o Player com o estado do Input, deltaTime e resolução de colisão pelo CollisionSystem
-    this.player.update(deltaTime, this.input, this.collisionSystem);
-
-    // 2. Atualizar o Streaming espacial de chunks baseado na nova posição do Player
-    // Só processa carregamento/descarregamento quando o Player cruzar fronteiras de chunk
+    // 1. Assegurar que os chunks da posição atual do Player estejam preparados no ChunkStreamingSystem
+    // (Otimizado: retorna false imediatamente se o player estiver no mesmo chunk)
     this.streamingSystem.update(this.player.position);
 
-    // 3. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo
+    // 2. Atualizar o Player com o estado do Input, deltaTime e resolução de colisão pelo CollisionSystem
+    // O CollisionSystem consulta exclusivamente tiles carregados (world.getLoadedTile)
+    this.player.update(deltaTime, this.input, this.collisionSystem);
+
+    // 3. Se o deslocamento do Player cruzou uma fronteira de chunk, preparar os novos chunks imediatamente
+    this.streamingSystem.update(this.player.position);
+
+    // 4. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo
     const playerCenter = this.player.getCenter();
     this.camera.setPosition(playerCenter.worldX, playerCenter.worldY);
   }

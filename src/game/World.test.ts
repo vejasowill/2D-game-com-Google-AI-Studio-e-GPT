@@ -205,7 +205,32 @@ export function runWorldTests(): void {
   );
   console.log('✓ Teste I passou: Limites artificiais 20x15 completamente removidos de World e CollisionSystem');
 
-  console.log('[TEST] Todos os testes do World (A-I) foram concluídos com sucesso!');
+  // =========================================================================
+  // J) O cálculo de spawn inicial não materializa chunks desnecessários
+  // =========================================================================
+  const freshWorld = new World(DEFAULT_WORLD_SEED);
+  const freshChunkManager = freshWorld.getChunkManager();
+  assert(freshChunkManager.getLoadedChunkCount() === 0, 'Instância virgem de World deve ter 0 chunks carregados');
+
+  const safePos = freshWorld.getSafeSpawnWorldPosition(PLAYER_SIZE);
+  assert(typeof safePos.worldX === 'number' && typeof safePos.worldY === 'number', 'Spawn position deve ser calculada');
+  assert(
+    freshChunkManager.getLoadedChunkCount() === 0,
+    `getSafeSpawnWorldPosition NUNCA deve instanciar chunks na memória (contagem esperada: 0, obtido: ${freshChunkManager.getLoadedChunkCount()})`,
+  );
+
+  // Testar também com várias seeds diferentes para garantir ausência de explosão de chunks
+  for (const s of [1, 42, 99999, 1234567, 88888]) {
+    const multiWorld = new World(s);
+    multiWorld.getSafeSpawnWorldPosition(PLAYER_SIZE);
+    assert(
+      multiWorld.getChunkManager().getLoadedChunkCount() === 0,
+      `Seed ${s}: getSafeSpawnWorldPosition não deve alocar chunks`,
+    );
+  }
+  console.log('✓ Teste J passou: Cálculo de spawn não materializa chunks na memória (0 chunks carregados)');
+
+  console.log('[TEST] Todos os testes do World (A-J) foram concluídos com sucesso!');
 }
 
 runWorldTests();

@@ -217,6 +217,138 @@ export function runWorldObjectTests(): void {
   assert(worldObjManager.hasObject('obj_chest_chunk33'), 'Objeto continua acessível após recarregar chunk');
   console.log('✓ Teste 9 passou: Independência completa entre ciclo de vida dos tiles e WorldObjects');
 
+  // =========================================================================
+  // Testes de Movimentação do WorldObjectManager (moveObject e consistência do índice):
+  // =========================================================================
+
+  // Teste 10: Mover objeto dentro do mesmo chunk
+  const moveObj1: WorldObject = {
+    id: 'dynamic_npc_1',
+    type: 'npc',
+    position: { worldX: 100, worldY: 100 },
+    width: 20,
+    height: 20,
+  };
+  objectManager.addObject(moveObj1);
+  const movedSameChunk = objectManager.moveObject('dynamic_npc_1', { worldX: 120, worldY: 130 });
+  assert(movedSameChunk === true, 'moveObject deve retornar true para objeto existente');
+  const retrievedAfterSameMove = objectManager.getObjectById('dynamic_npc_1');
+  assert(retrievedAfterSameMove?.position.worldX === 120, 'Posição X deve ser 120');
+  assert(retrievedAfterSameMove?.position.worldY === 130, 'Posição Y deve ser 130');
+  const inSameChunk = objectManager.getObjectsInChunk(0, 0);
+  assert(inSameChunk.some((o) => o.id === 'dynamic_npc_1'), 'Objeto continua indexado no chunk (0,0)');
+  console.log('✓ Teste 10 passou: Mover objeto dentro do mesmo chunk');
+
+  // Teste 11: Mover objeto para outro chunk
+  // Chunk 0 é [0..511], Chunk 2 é [1024..1535]
+  const movedToOtherChunk = objectManager.moveObject('dynamic_npc_1', { worldX: 1100, worldY: 1100 });
+  assert(movedToOtherChunk === true, 'moveObject para outro chunk deve retornar true');
+  console.log('✓ Teste 11 passou: Mover objeto para outro chunk');
+
+  // Teste 12: Confirmar que a célula antiga não contém mais o objeto
+  const oldChunkObjects = objectManager.getObjectsInChunk(0, 0);
+  assert(
+    !oldChunkObjects.some((o) => o.id === 'dynamic_npc_1'),
+    'Célula antiga (0,0) NÃO deve mais conter o objeto movido para o chunk 2',
+  );
+  console.log('✓ Teste 12 passou: Confirmar que a célula antiga não contém mais o objeto');
+
+  // Teste 13: Confirmar que a nova célula contém o objeto
+  // 1100px / 512px = chunk 2
+  const newChunkObjects = objectManager.getObjectsInChunk(2, 2);
+  assert(
+    newChunkObjects.some((o) => o.id === 'dynamic_npc_1'),
+    'Nova célula de chunk (2,2) DEVE conter o objeto movido',
+  );
+  console.log('✓ Teste 13 passou: Confirmar que a nova célula contém o objeto');
+
+  // Teste 14: Mover objeto atravessando dois ou mais chunks (objeto posicionado na fronteira)
+  // Fronteira entre chunk 2 e chunk 3 está em 3 * 512 = 1536px
+  objectManager.moveObject('dynamic_npc_1', { worldX: 1530, worldY: 1100 }); // Inicia em 1530 com width 20 -> vai até 1550 (atravessa 1536)
+  const chunk2Touched = objectManager.getObjectsInChunk(2, 2);
+  const chunk3Touched = objectManager.getObjectsInChunk(3, 2);
+  assert(
+    chunk2Touched.some((o) => o.id === 'dynamic_npc_1'),
+    'Objeto na fronteira deve ser indexado no chunk 2',
+  );
+  assert(
+    chunk3Touched.some((o) => o.id === 'dynamic_npc_1'),
+    'Objeto na fronteira deve ser indexado no chunk 3',
+  );
+  console.log('✓ Teste 14 passou: Mover objeto atravessando dois ou mais chunks');
+
+  // Teste 15: Mover objeto através da fronteira negativa (ex: para -50px no chunk -1)
+  objectManager.moveObject('dynamic_npc_1', { worldX: -50, worldY: -50 });
+  const negChunkObjects = objectManager.getObjectsInChunk(-1, -1);
+  assert(
+    negChunkObjects.some((o) => o.id === 'dynamic_npc_1'),
+    'Objeto movido para coordenadas negativas deve ser indexado no chunk (-1,-1)',
+  );
+  const oldChunk2Objects = objectManager.getObjectsInChunk(2, 2);
+  const oldChunk3Objects = objectManager.getObjectsInChunk(3, 2);
+  assert(
+    !oldChunk2Objects.some((o) => o.id === 'dynamic_npc_1') &&
+    !oldChunk3Objects.some((o) => o.id === 'dynamic_npc_1'),
+    'Chunks anteriores (2,2) e (3,2) não devem mais conter o objeto',
+  );
+  console.log('✓ Teste 15 passou: Mover objeto através da fronteira negativa');
+
+  // Teste 16: Confirmar que getObjectsInArea() encontra o objeto na posição nova
+  const areaAtNewPos = objectManager.getObjectsInArea(-60, -60, 40, 40);
+  assert(
+    areaAtNewPos.some((o) => o.id === 'dynamic_npc_1'),
+    'getObjectsInArea deve encontrar o objeto na sua nova coordenada (-50, -50)',
+  );
+  const areaAtOldPos = objectManager.getObjectsInArea(1000, 1000, 200, 200);
+  assert(
+    !areaAtOldPos.some((o) => o.id === 'dynamic_npc_1'),
+    'getObjectsInArea na posição antiga não deve encontrar o objeto',
+  );
+  console.log('✓ Teste 16 passou: Confirmar que getObjectsInArea() encontra o objeto na posição nova');
+
+  // Teste 17: Confirmar que o objeto continua com o mesmo ID
+  const movedObjCheck = objectManager.getObjectById('dynamic_npc_1');
+  assert(movedObjCheck !== null, 'Objeto deve existir');
+  assert(movedObjCheck?.id === 'dynamic_npc_1', 'ID do objeto deve ser estritamente preservado');
+  assert(movedObjCheck?.type === 'npc', 'Tipo do objeto deve ser estritamente preservado');
+  console.log('✓ Teste 17 passou: Confirmar que o objeto continua com o mesmo ID');
+
+  // Teste 18: Remover objeto após movimentá-lo
+  const removedAfterMove = objectManager.removeObject('dynamic_npc_1');
+  assert(removedAfterMove === true, 'removeObject após moveObject deve retornar true');
+  assert(objectManager.getObjectById('dynamic_npc_1') === null, 'Objeto removido não deve existir');
+  const negChunkAfterRemove = objectManager.getObjectsInChunk(-1, -1);
+  assert(
+    !negChunkAfterRemove.some((o) => o.id === 'dynamic_npc_1'),
+    'Índice espacial do chunk negativo deve estar limpo após remoção',
+  );
+  console.log('✓ Teste 18 passou: Remover objeto após movimentá-lo');
+
+  // Teste 19: Mover objeto repetidamente sem acumular referências duplicadas
+  const stressObj: WorldObject = {
+    id: 'stress_npc',
+    type: 'rabbit',
+    position: { worldX: 10, worldY: 10 },
+    width: 10,
+    height: 10,
+  };
+  objectManager.addObject(stressObj);
+
+  for (let i = 0; i < 50; i++) {
+    // Alternar entre chunk (0,0) e chunk (1,0) repetidamente
+    const targetX = (i % 2 === 0) ? 50 : 600;
+    objectManager.moveObject('stress_npc', { worldX: targetX, worldY: 50 });
+  }
+  // Após 50 movimentos, o objeto está no chunk (1,0) (i=49 -> ímpar -> x=600)
+  const stressChunk1 = objectManager.getObjectsInChunk(1, 0);
+  const stressChunk0 = objectManager.getObjectsInChunk(0, 0);
+  const occurrencesInChunk1 = stressChunk1.filter((o) => o.id === 'stress_npc').length;
+  const occurrencesInChunk0 = stressChunk0.filter((o) => o.id === 'stress_npc').length;
+  assert(occurrencesInChunk1 === 1, `Deve existir exatamente 1 ocorrência no chunk atual, obtido: ${occurrencesInChunk1}`);
+  assert(occurrencesInChunk0 === 0, `Não deve existir ocorrência no chunk antigo, obtido: ${occurrencesInChunk0}`);
+  objectManager.removeObject('stress_npc');
+  console.log('✓ Teste 19 passou: Mover objeto repetidamente sem acumular referências duplicadas');
+
   console.log('[TEST] Todos os testes de WorldObject e WorldObjectManager foram concluídos com sucesso!');
 }
 
