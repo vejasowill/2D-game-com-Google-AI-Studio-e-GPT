@@ -1,4 +1,5 @@
 import { DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
+import { CollisionSystem } from './CollisionSystem.ts';
 import { InputSource, WorldBounds, WorldCoord } from './types.ts';
 
 export class Player {
@@ -17,38 +18,21 @@ export class Player {
   }
 
   /**
-   * Atualiza a posição do Player com base no vetor de entrada e no deltaTime,
-   * garantindo movimentação com taxa independente de FPS.
-   * Se os limites do mundo forem fornecidos, restringe a posição aos limites.
+   * Atualiza o Player no ciclo de frame.
+   * Delega o cálculo de deslocamento e colisão espacial exclusivamente ao CollisionSystem.
+   * O Player não possui regras sobre tipos de tiles ou walkability.
    */
   public update(
     deltaTime: number,
     input: InputSource,
-    bounds?: WorldBounds,
+    collisionSystem: CollisionSystem,
   ): void {
     const direction = input.getMovementDirection();
-
-    if (direction.x !== 0 || direction.y !== 0) {
-      // Garante normalização de segurança para movimentação uniforme em qualquer direção
-      const length = Math.hypot(direction.x, direction.y);
-      const normalizedX = length > 0 ? direction.x / length : 0;
-      const normalizedY = length > 0 ? direction.y / length : 0;
-
-      this.position.worldX += normalizedX * this.speed * deltaTime;
-      this.position.worldY += normalizedY * this.speed * deltaTime;
-    }
-
-    if (bounds) {
-      this.clampToBounds(bounds);
-    }
+    collisionSystem.movePlayer(this, direction, deltaTime);
   }
 
   /**
    * Mantém o Player estritamente dentro dos limites espaciais do mundo.
-   * Borda esquerda: worldX >= minX
-   * Borda superior: worldY >= minY
-   * Borda direita: worldX + size <= maxX => worldX <= maxX - size
-   * Borda inferior: worldY + size <= maxY => worldY <= maxY - size
    */
   public clampToBounds(bounds: WorldBounds): void {
     const minX = bounds.minX;
@@ -70,3 +54,4 @@ export class Player {
     };
   }
 }
+

@@ -1,5 +1,6 @@
 import { PLAYER_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
+import { CollisionSystem } from './CollisionSystem.ts';
 import { GameLoop } from './GameLoop.ts';
 import { Input } from './Input.ts';
 import { Player } from './Player.ts';
@@ -12,6 +13,7 @@ export class Game {
   private camera: Camera;
   private player: Player;
   private input: Input;
+  private collisionSystem: CollisionSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private resizeObserver: ResizeObserver | null = null;
@@ -21,7 +23,10 @@ export class Game {
     // 1. Instanciar o World (dados dos tiles)
     this.world = new World();
 
-    // 2. Calcular a posição inicial do Player centralizado no mundo (sem números mágicos)
+    // 2. Instanciar o sistema de colisão espacial baseado no World
+    this.collisionSystem = new CollisionSystem(this.world);
+
+    // 3. Calcular a posição inicial do Player centralizado no mundo (sem números mágicos)
     const worldCenterX = this.world.getWorldWidthInPixels() / 2;
     const worldCenterY = this.world.getWorldHeightInPixels() / 2;
 
@@ -31,20 +36,20 @@ export class Game {
     };
     this.player = new Player(initialPlayerPosition);
 
-    // 3. Instanciar a Camera centralizada no Player
+    // 4. Instanciar a Camera centralizada no Player
     const playerCenter = this.player.getCenter();
     this.camera = new Camera(playerCenter.worldX, playerCenter.worldY);
 
-    // 4. Instanciar o subsistema de Input
+    // 5. Instanciar o subsistema de Input
     this.input = new Input();
 
-    // 5. Instanciar o Renderer gráfico
+    // 6. Instanciar o Renderer gráfico
     this.renderer = new Renderer(canvas);
 
     // Aplicar clamp inicial na Camera com os limites do mundo e tamanho da viewport
     this.camera.clampToBounds(this.world.getBounds(), this.renderer.getViewportSize());
 
-    // 6. Instanciar o GameLoop
+    // 7. Instanciar o GameLoop
     this.loop = new GameLoop({
       update: (dt: number) => this.update(dt),
       render: () => this.render(),
@@ -82,9 +87,9 @@ export class Game {
     const worldBounds = this.world.getBounds();
     const viewport = this.renderer.getViewportSize();
 
-    // Ordem: GameLoop -> Input -> Player.update -> Camera
-    // 1. Atualizar o Player com o estado do Input, deltaTime e limites do mundo
-    this.player.update(deltaTime, this.input, worldBounds);
+    // Ordem: GameLoop -> Input -> Player.update(dt, input, collisionSystem) -> Camera
+    // 1. Atualizar o Player com o estado do Input, deltaTime e resolução de colisão pelo CollisionSystem
+    this.player.update(deltaTime, this.input, this.collisionSystem);
 
     // 2. Atualizar a Camera acompanhando a posição do Player
     const playerCenter = this.player.getCenter();
