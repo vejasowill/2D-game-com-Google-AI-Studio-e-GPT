@@ -173,6 +173,24 @@ export class CollisionSystem {
         this.canOccupyArea(clampedX, player.position.worldY, size, size)
       ) {
         player.position.worldX = clampedX;
+      } else if (clampedX !== player.position.worldX) {
+        // Encostar rente ao limite do obstáculo no eixo X
+        const snapX =
+          deltaX > 0
+            ? Math.floor((player.position.worldX + size) / TILE_SIZE + 1) * TILE_SIZE - size
+            : Math.floor(player.position.worldX / TILE_SIZE) * TILE_SIZE;
+
+        const isMovingTowardsSnap =
+          deltaX > 0
+            ? snapX > player.position.worldX && snapX <= clampedX
+            : snapX < player.position.worldX && snapX >= clampedX;
+
+        if (
+          isMovingTowardsSnap &&
+          this.canOccupyArea(snapX, player.position.worldY, size, size)
+        ) {
+          player.position.worldX = snapX;
+        }
       }
     }
 
@@ -190,6 +208,24 @@ export class CollisionSystem {
         this.canOccupyArea(player.position.worldX, clampedY, size, size)
       ) {
         player.position.worldY = clampedY;
+      } else if (clampedY !== player.position.worldY) {
+        // Encostar rente ao limite do obstáculo no eixo Y
+        const snapY =
+          deltaY > 0
+            ? Math.floor((player.position.worldY + size) / TILE_SIZE + 1) * TILE_SIZE - size
+            : Math.floor(player.position.worldY / TILE_SIZE) * TILE_SIZE;
+
+        const isMovingTowardsSnap =
+          deltaY > 0
+            ? snapY > player.position.worldY && snapY <= clampedY
+            : snapY < player.position.worldY && snapY >= clampedY;
+
+        if (
+          isMovingTowardsSnap &&
+          this.canOccupyArea(player.position.worldX, snapY, size, size)
+        ) {
+          player.position.worldY = snapY;
+        }
       }
     }
   }

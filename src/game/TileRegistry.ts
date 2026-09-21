@@ -1,4 +1,8 @@
-import { GRASS_TILE_DEFINITION, TileDefinition } from './TileDefinition.ts';
+import {
+  GRASS_TILE_DEFINITION,
+  TileDefinition,
+  WATER_TILE_DEFINITION,
+} from './TileDefinition.ts';
 import { TileType } from './types.ts';
 
 /**
@@ -16,6 +20,7 @@ export class TileRegistry {
       return;
     }
     this.register(GRASS_TILE_DEFINITION);
+    this.register(WATER_TILE_DEFINITION);
     this.isInitialized = true;
   }
 

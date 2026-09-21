@@ -126,6 +126,98 @@ export function runCollisionTests(): void {
   );
   console.log('✓ Teste 5 passou: Resolução por eixo permite deslizamento suave');
 
+  // =========================================================================
+  // Testes específicos de WATER (validação de terreno não caminhável)
+  // =========================================================================
+
+  // Teste 6: Uma área totalmente sobre WATER deve retornar false em canOccupyArea()
+  const waterTileWorld = world.tileToWorld({ tileX: 14, tileY: 6 });
+  const waterOccupied = collision.canOccupyArea(
+    waterTileWorld.worldX,
+    waterTileWorld.worldY,
+    PLAYER_SIZE,
+    PLAYER_SIZE,
+  );
+  assert(waterOccupied === false, 'Área totalmente sobre WATER deve retornar false em canOccupyArea()');
+  console.log('✓ Teste 6 passou: Área totalmente sobre WATER retorna false');
+
+  // Teste 7: Uma área totalmente sobre GRASS deve continuar retornando true
+  const grassTileWorld = world.tileToWorld({ tileX: 2, tileY: 2 });
+  const grassOccupied = collision.canOccupyArea(
+    grassTileWorld.worldX,
+    grassTileWorld.worldY,
+    PLAYER_SIZE,
+    PLAYER_SIZE,
+  );
+  assert(grassOccupied === true, 'Área totalmente sobre GRASS deve continuar retornando true');
+  console.log('✓ Teste 7 passou: Área totalmente sobre GRASS continua retornando true');
+
+  // Teste 8: Uma área parcialmente sobre GRASS e WATER deve retornar false
+  const waterLeftEdgeX = 13 * TILE_SIZE; // Tile 13 é o início da lagoa de teste em X
+  const partialWaterOccupied = collision.canOccupyArea(
+    waterLeftEdgeX - PLAYER_SIZE / 2,
+    6 * TILE_SIZE,
+    PLAYER_SIZE,
+    PLAYER_SIZE,
+  );
+  assert(
+    partialWaterOccupied === false,
+    'Área parcialmente sobre GRASS e WATER deve retornar false',
+  );
+  console.log('✓ Teste 8 passou: Área parcialmente sobre GRASS e WATER retorna false');
+
+  // Teste 9: O Player deve conseguir aproximar-se da água, mas não atravessá-la
+  const startX = waterLeftEdgeX - PLAYER_SIZE - 40;
+  const approachPlayer = new Player(
+    { worldX: startX, worldY: 6 * TILE_SIZE },
+    DEFAULT_PLAYER_SPEED,
+    PLAYER_SIZE,
+  );
+  // Movimenta em direção à água (direita) com tempo suficiente para atingir o obstáculo
+  collision.movePlayer(approachPlayer, { x: 1, y: 0 }, 0.5);
+  assert(
+    approachPlayer.position.worldX > startX,
+    'Player deve conseguir aproximar-se da água',
+  );
+  assert(
+    approachPlayer.position.worldX + approachPlayer.size <= waterLeftEdgeX,
+    'Player não deve penetrar nem atravessar a água',
+  );
+  console.log('✓ Teste 9 passou: Player aproxima-se da água sem atravessá-la');
+
+  // Teste 10: Testar movimento contra a borda da água em pelo menos um eixo
+  const edgePlayer = new Player(
+    { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: 6 * TILE_SIZE },
+    DEFAULT_PLAYER_SPEED,
+    PLAYER_SIZE,
+  );
+  // Tenta avançar diretamente contra a água
+  collision.movePlayer(edgePlayer, { x: 1, y: 0 }, 0.2);
+  assert(
+    edgePlayer.position.worldX === waterLeftEdgeX - PLAYER_SIZE,
+    'Player deve ser completamente bloqueado contra a borda da água',
+  );
+  console.log('✓ Teste 10 passou: Movimento direto contra a borda da água é bloqueado');
+
+  // Teste 11: Testar movimento diagonal contra a água para garantir que o Player deslize pelo eixo livre
+  const initialY = 6 * TILE_SIZE;
+  const slidePlayer = new Player(
+    { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: initialY },
+    DEFAULT_PLAYER_SPEED,
+    PLAYER_SIZE,
+  );
+  // Movimenta na diagonal: empurrando contra a água (X positivo) e descendo (Y positivo)
+  collision.movePlayer(slidePlayer, { x: 1, y: 1 }, 0.1);
+  assert(
+    slidePlayer.position.worldX === waterLeftEdgeX - PLAYER_SIZE,
+    'Eixo X deve permanecer bloqueado contra a água',
+  );
+  assert(
+    slidePlayer.position.worldY > initialY,
+    'Player deve deslizar no eixo Y livre para baixo',
+  );
+  console.log('✓ Teste 11 passou: Movimento diagonal contra a água desliza pelo eixo livre');
+
   console.log('[TEST] Todos os testes do CollisionSystem foram concluídos com sucesso!');
 }
 

@@ -1,5 +1,6 @@
 export enum TileType {
   GRASS = 'GRASS',
+  WATER = 'WATER',
 }
 
 export type { TileDefinition } from './TileDefinition.ts';

@@ -22,3 +22,15 @@ export const GRASS_TILE_DEFINITION: TileDefinition = {
   color: '#2e7d32',
   borderColor: '#256629',
 };
+
+/**
+ * Definição estática do tipo de terreno WATER (água).
+ * Não caminhável por padrão.
+ */
+export const WATER_TILE_DEFINITION: TileDefinition = {
+  type: TileType.WATER,
+  walkable: false,
+  movementCost: Infinity,
+  color: '#0284c7',
+  borderColor: '#0369a1',
+};

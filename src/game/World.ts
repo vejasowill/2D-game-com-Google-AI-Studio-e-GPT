@@ -25,6 +25,31 @@ export class World {
         };
       }
     }
+
+    this.applyTestWaterArea();
+  }
+
+  /**
+   * Configuração de área de teste para validação do terreno WATER (não caminhável).
+   * Centralizada em um único método para fácil remoção ou substituição futura por gerador procedural.
+   * Posicionada a leste do centro (X: 13..16, Y: 5..8), permitindo que o Player inicie
+   * no centro sobre GRASS com folga segura.
+   */
+  private applyTestWaterArea(): void {
+    const waterMinX = 13;
+    const waterMaxX = 16;
+    const waterMinY = 5;
+    const waterMaxY = 8;
+
+    for (let tileY = waterMinY; tileY <= waterMaxY; tileY++) {
+      for (let tileX = waterMinX; tileX <= waterMaxX; tileX++) {
+        if (this.isValidTileCoord(tileX, tileY)) {
+          this.tiles[this.getIndex(tileX, tileY)] = {
+            type: TileType.WATER,
+          };
+        }
+      }
+    }
   }
 
   public getTile(tileX: number, tileY: number): Tile | null {
@@ -32,6 +57,14 @@ export class World {
       return null;
     }
     return this.tiles[this.getIndex(tileX, tileY)];
+  }
+
+  public setTile(tileX: number, tileY: number, type: TileType): boolean {
+    if (!this.isValidTileCoord(tileX, tileY)) {
+      return false;
+    }
+    this.tiles[this.getIndex(tileX, tileY)] = { type };
+    return true;
   }
 
   public isValidTileCoord(tileX: number, tileY: number): boolean {
