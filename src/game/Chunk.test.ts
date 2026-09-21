@@ -108,6 +108,9 @@ export function runChunkTests(): void {
   // 8. setTile() e getTile() funcionam corretamente atravessando a fronteira entre chunks
   // =========================================================================
   const manager = new ChunkManager();
+  // Garante que os vizinhos comecem explicitamente como GRASS
+  manager.setTile(14, 8, TileType.GRASS);
+  manager.setTile(17, 8, TileType.GRASS);
   // Modifica o último tile do chunk (0,0) e o primeiro do chunk (1,0)
   manager.setTile(15, 8, TileType.WATER);
   manager.setTile(16, 8, TileType.WATER);
@@ -151,12 +154,12 @@ export function runChunkTests(): void {
   // =========================================================================
   const world = new World();
   assert(
-    world.getTile(0, 0)?.type === TileType.GRASS,
-    'World.getTile(0, 0) deve retornar GRASS',
+    world.getTile(0, 0) !== null,
+    'World.getTile(0, 0) deve retornar tile válido',
   );
   assert(
-    world.getTile(19, 14)?.type === TileType.GRASS,
-    'World.getTile(19, 14) deve retornar GRASS',
+    world.getTile(19, 14) !== null,
+    'World.getTile(19, 14) deve retornar tile válido',
   );
   assert(
     world.getTile(-1, 0) !== null,

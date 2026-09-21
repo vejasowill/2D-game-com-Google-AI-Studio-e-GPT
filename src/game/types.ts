@@ -10,6 +10,21 @@ export interface Tile {
 }
 
 /**
+ * Dados ambientais contínuos associados a uma coordenada global do mundo.
+ * Todos os valores são estritamente normalizados no intervalo contínuo [0, 1).
+ *
+ * - temperature: 0.0 (frio/ártico) a ~0.999 (muito quente/árido).
+ * - humidity: 0.0 (muito seco/árido) a ~0.999 (muito úmido/pluvioso).
+ * - elevation: 0.0 (baixo/depressão/oceânico) a ~0.999 (altiplano/pico montanhoso).
+ *   (Nota: 'elevation' é puramente um valor escalar ambiental top-down, sem dimensão Z visual).
+ */
+export interface EnvironmentalData {
+  readonly temperature: number;
+  readonly humidity: number;
+  readonly elevation: number;
+}
+
+/**
  * Coordenadas de grade do tile (índices inteiros na matriz, ex: 0..width-1, 0..height-1)
  */
 export interface TileCoord {

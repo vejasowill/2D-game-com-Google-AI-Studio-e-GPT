@@ -1,7 +1,8 @@
 import { ChunkManager } from './ChunkManager.ts';
+import { Biome } from './Biome.ts';
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { TileRegistry } from './TileRegistry.ts';
-import { Tile, TileCoord, TileType, WorldCoord } from './types.ts';
+import { EnvironmentalData, Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
 import { WorldObject } from './WorldObject.ts';
 import { WorldObjectManager } from './WorldObjectManager.ts';
@@ -19,6 +20,29 @@ export class World {
 
   public getSeed(): number {
     return this.worldGenerator.seed;
+  }
+
+  /**
+   * Retorna o gerador procedural subjacente.
+   */
+  public getWorldGenerator(): WorldGenerator {
+    return this.worldGenerator;
+  }
+
+  /**
+   * Consulta os dados ambientais (temperatura, umidade, elevação) para uma coordenada global.
+   * Função pura e direta: NUNCA materializa ou aloca chunks no ChunkManager.
+   */
+  public getEnvironmentalDataAt(tileX: number, tileY: number): EnvironmentalData {
+    return this.worldGenerator.getEnvironmentalDataAt(tileX, tileY);
+  }
+
+  /**
+   * Consulta o bioma determinístico para uma coordenada global.
+   * Função pura e direta: NUNCA materializa ou aloca chunks no ChunkManager.
+   */
+  public getBiomeAt(tileX: number, tileY: number): Biome {
+    return this.worldGenerator.getBiomeAt(tileX, tileY);
   }
 
   /**

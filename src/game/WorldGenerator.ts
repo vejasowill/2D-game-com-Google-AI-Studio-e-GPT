@@ -1,6 +1,8 @@
+import { Biome } from './Biome.ts';
+import { BiomeResolver } from './BiomeResolver.ts';
 import { CHUNK_SIZE, DEFAULT_WORLD_SEED } from './constants.ts';
 import { Chunk } from './Chunk.ts';
-import { ChunkCoord, TileType } from './types.ts';
+import { ChunkCoord, EnvironmentalData, TileType } from './types.ts';
 
 /**
  * Função hash determinística 32-bit (sem estado mutável, pura e estritamente matemática).
@@ -23,36 +25,117 @@ export function normalizeHash(hash: number): number {
  * Gerador procedural determinístico de mundo baseado em SEED.
  *
  * Responsável por:
- * - Gerar o terreno (TileType) para coordenadas globais com base na seed;
- * - Produzir Chunks contíguos de forma 100% determinística;
- * - Manter coerência espacial (regiões contínuas de WATER e GRASS predominante);
- * - Independer da ordem em que os Chunks são solicitados.
+ * - Gerar campos ambientais matemáticos suaves e contínuos: temperatura, umidade, elevação em [0, 1);
+ * - Resolver biomas (Biome) através do BiomeResolver;
+ * - Mapear biomas para os TileTypes do terreno na grade de Chunks;
+ * - Manter coerência espacial em escala global, sem ruído branco tile-a-tile;
+ * - Ser 100% determinístico e independente da ordem de requisições ou posições de câmera/player.
  *
  * Desacoplado de: Player, Camera, Renderer, Canvas, Input, GameLoop, CollisionSystem.
  */
 export class WorldGenerator {
   public readonly seed: number;
 
-  // Tamanho da célula da grade de interpolação para coerência espacial de terreno
-  private static readonly COARSE_GRID_SIZE = 8;
-  // Limiar para definição de água: valores abaixo deste limiar se tornam WATER
-  private static readonly WATER_THRESHOLD = 0.28;
+  // Sementes derivadas para cada campo escalar (garantindo ortogonalidade dos ruídos)
+  private readonly seedElevation: number;
+  private readonly seedTemperature: number;
+  private readonly seedHumidity: number;
+
+  // Tamanhos de grade para interpolação contínua (macro-regiões climáticas)
+  // Grade de elevação (8 tiles = 256px = meia chunk): formas costeiras e corpos d'água orgânicos
+  private static readonly ELEVATION_GRID_SIZE = 8;
+  // Grade de temperatura (48 tiles = 1536px): grandes zonas climáticas
+  private static readonly TEMPERATURE_GRID_SIZE = 48;
+  // Grade de umidade (36 tiles = 1152px): frentes de umidade e pluviosidade
+  private static readonly HUMIDITY_GRID_SIZE = 36;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
     this.seed = seed | 0;
+    // Derivação de seeds específicas e ortogonais para cada campo escalar
+    this.seedElevation = (this.seed ^ 0x3d7b5129) | 0;
+    this.seedTemperature = (this.seed ^ 0x6e9f1a85) | 0;
+    this.seedHumidity = (this.seed ^ 0x1b56c4e9) | 0;
+  }
+
+  /**
+   * Amostra a elevação matemática contínua na coordenada global [0, 1).
+   * Valores < WATER_ELEVATION (0.35) definem massas de água (OCEAN -> WATER).
+   */
+  public getElevationAt(globalTileX: number, globalTileY: number): number {
+    return this.sampleSmoothField(
+      this.seedElevation,
+      globalTileX,
+      globalTileY,
+      WorldGenerator.ELEVATION_GRID_SIZE,
+    );
+  }
+
+  /**
+   * Amostra a temperatura contínua na coordenada global [0, 1).
+   * Incorpora um gradiente sutil de macro-latitude no eixo Y combinado ao ruído suave.
+   */
+  public getTemperatureAt(globalTileX: number, globalTileY: number): number {
+    const noise = this.sampleSmoothField(
+      this.seedTemperature,
+      globalTileX,
+      globalTileY,
+      WorldGenerator.TEMPERATURE_GRID_SIZE,
+    );
+
+    // Gradiente suave de latitude: modulação de onda senoidal de período amplo (256 tiles)
+    // Mantém a variação suave e determinística sem estourar o intervalo [0, 1)
+    const latitudeFactor = Math.sin(globalTileY * 0.02) * 0.15;
+    const temp = noise + latitudeFactor;
+
+    // Garante normalização estrita em [0, 1)
+    if (temp <= 0) return 0;
+    if (temp >= 1) return 0.999999;
+    return temp;
+  }
+
+  /**
+   * Amostra a umidade contínua na coordenada global [0, 1).
+   * Campo espacial desacoplado da temperatura e elevação.
+   */
+  public getHumidityAt(globalTileX: number, globalTileY: number): number {
+    return this.sampleSmoothField(
+      this.seedHumidity,
+      globalTileX,
+      globalTileY,
+      WorldGenerator.HUMIDITY_GRID_SIZE,
+    );
+  }
+
+  /**
+   * Retorna o pacote completo de dados ambientais normalizados [0, 1) para a coordenada global.
+   * Não instancia chunks nem aloca memória desnecessária.
+   */
+  public getEnvironmentalDataAt(globalTileX: number, globalTileY: number): EnvironmentalData {
+    return {
+      temperature: this.getTemperatureAt(globalTileX, globalTileY),
+      humidity: this.getHumidityAt(globalTileX, globalTileY),
+      elevation: this.getElevationAt(globalTileX, globalTileY),
+    };
+  }
+
+  /**
+   * Resolve o bioma correspondente à coordenada global através do BiomeResolver.
+   * Não materializa chunks na memória.
+   */
+  public getBiomeAt(globalTileX: number, globalTileY: number): Biome {
+    const env = this.getEnvironmentalDataAt(globalTileX, globalTileY);
+    return BiomeResolver.resolveBiome(env);
   }
 
   /**
    * Determina deterministicamente o TileType para uma coordenada global de tile.
-   * Utiliza interpolação cúbica (smoothstep) sobre vértices de hash da grade grossa,
-   * gerando lagoas e manchas orgânicas suaves sem ruído branco desconexo.
+   *
+   * Fluxo arquitetural:
+   * Coordenada Global -> Dados Ambientais -> Biome -> TileType
    */
   public getTileTypeAt(globalTileX: number, globalTileY: number): TileType {
-    const value = this.sampleSpatialCoherence(globalTileX, globalTileY);
-    if (value < WorldGenerator.WATER_THRESHOLD) {
-      return TileType.WATER;
-    }
-    return TileType.GRASS;
+    const biome = this.getBiomeAt(globalTileX, globalTileY);
+    return BiomeResolver.biomeToTileType(biome);
   }
 
   /**
@@ -75,12 +158,15 @@ export class WorldGenerator {
   }
 
   /**
-   * Amostra um valor contínuo e suave em [0, 1) na coordenada global de tile.
-   * Suporta nativamente números negativos através de Math.floor.
+   * Amostra um campo contínuo suave em [0, 1) em grade regular com curva Hermite (Smoothstep).
+   * Suporta coordenadas positivas, negativas ou distantes através de Math.floor.
    */
-  private sampleSpatialCoherence(globalTileX: number, globalTileY: number): number {
-    const gridSize = WorldGenerator.COARSE_GRID_SIZE;
-
+  private sampleSmoothField(
+    fieldSeed: number,
+    globalTileX: number,
+    globalTileY: number,
+    gridSize: number,
+  ): number {
     const gx = Math.floor(globalTileX / gridSize);
     const gy = Math.floor(globalTileY / gridSize);
 
@@ -91,16 +177,19 @@ export class WorldGenerator {
     const sx = fx * fx * (3 - 2 * fx);
     const sy = fy * fy * (3 - 2 * fy);
 
-    // Amostragem nos 4 cantos da célula da grade com a seed
-    const h00 = normalizeHash(deterministicHash2D(this.seed, gx, gy));
-    const h10 = normalizeHash(deterministicHash2D(this.seed, gx + 1, gy));
-    const h01 = normalizeHash(deterministicHash2D(this.seed, gx, gy + 1));
-    const h11 = normalizeHash(deterministicHash2D(this.seed, gx + 1, gy + 1));
+    // Amostragem nos 4 vértices da célula de grade
+    const h00 = normalizeHash(deterministicHash2D(fieldSeed, gx, gy));
+    const h10 = normalizeHash(deterministicHash2D(fieldSeed, gx + 1, gy));
+    const h01 = normalizeHash(deterministicHash2D(fieldSeed, gx, gy + 1));
+    const h11 = normalizeHash(deterministicHash2D(fieldSeed, gx + 1, gy + 1));
 
     // Interpolação bilinear suave
     const top = (1 - sx) * h00 + sx * h10;
     const bottom = (1 - sx) * h01 + sx * h11;
 
-    return (1 - sy) * top + sy * bottom;
+    const val = (1 - sy) * top + sy * bottom;
+    if (val < 0) return 0;
+    if (val >= 1) return 0.999999;
+    return val;
   }
 }
