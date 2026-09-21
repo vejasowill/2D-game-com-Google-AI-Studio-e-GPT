@@ -1,8 +1,9 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { Player } from './Player.ts';
+import { TileRegistry } from './TileRegistry.ts';
 import { World } from './World.ts';
-import { TileType, ViewportSize } from './types.ts';
+import { ViewportSize } from './types.ts';
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -10,10 +11,8 @@ export class Renderer {
   private width: number = 0;
   private height: number = 0;
 
-  // Estilo visual inicial do terreno e do jogador
+  // Estilo visual inicial de fundo e do jogador
   private readonly clearColor: string = '#121316';
-  private readonly grassColor: string = '#2e7d32';
-  private readonly tileBorderColor: string = '#256629';
   private readonly playerColor: string = '#3b82f6';
   private readonly playerBorderColor: string = '#1d4ed8';
 
@@ -81,18 +80,19 @@ export class Renderer {
           continue;
         }
 
-        // Passo 4: Desenhar o tile no Canvas de acordo com seu tipo
-        if (tile.type === TileType.GRASS) {
-          this.ctx.fillStyle = this.grassColor;
-          this.ctx.fillRect(
-            screenCoord.screenX,
-            screenCoord.screenY,
-            TILE_SIZE,
-            TILE_SIZE,
-          );
+        // Passo 4: Desenhar o tile no Canvas de acordo com sua definição registrada
+        const tileDef = TileRegistry.get(tile.type);
+        this.ctx.fillStyle = tileDef.color;
+        this.ctx.fillRect(
+          screenCoord.screenX,
+          screenCoord.screenY,
+          TILE_SIZE,
+          TILE_SIZE,
+        );
 
+        if (tileDef.borderColor) {
           // Contorno sutil para evidenciar a malha de tiles
-          this.ctx.strokeStyle = this.tileBorderColor;
+          this.ctx.strokeStyle = tileDef.borderColor;
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(
             screenCoord.screenX + 0.5,

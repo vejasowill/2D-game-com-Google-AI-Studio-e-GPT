@@ -2,6 +2,8 @@ export enum TileType {
   GRASS = 'GRASS',
 }
 
+export type { TileDefinition } from './TileDefinition.ts';
+
 export interface Tile {
   type: TileType;
 }

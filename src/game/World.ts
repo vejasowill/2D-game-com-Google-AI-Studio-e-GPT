@@ -38,6 +38,10 @@ export class World {
     return tileX >= 0 && tileX < this.width && tileY >= 0 && tileY < this.height;
   }
 
+  public isValidCoord(tileX: number, tileY: number): boolean {
+    return this.isValidTileCoord(tileX, tileY);
+  }
+
   /**
    * Retorna a largura total do mundo em coordenadas de mundo (pixels).
    */
