@@ -26,14 +26,8 @@ export class Game {
     // 2. Instanciar o sistema de colisão espacial baseado no World
     this.collisionSystem = new CollisionSystem(this.world);
 
-    // 3. Calcular a posição inicial do Player centralizado no mundo (sem números mágicos)
-    const worldCenterX = this.world.getWorldWidthInPixels() / 2;
-    const worldCenterY = this.world.getWorldHeightInPixels() / 2;
-
-    const initialPlayerPosition: WorldCoord = {
-      worldX: worldCenterX - PLAYER_SIZE / 2,
-      worldY: worldCenterY - PLAYER_SIZE / 2,
-    };
+    // 3. Obter a posição inicial segura para o Player sobre terreno caminhável próximo ao centro
+    const initialPlayerPosition = this.world.getSafeSpawnWorldPosition(PLAYER_SIZE);
     this.player = new Player(initialPlayerPosition);
 
     // 4. Instanciar a Camera centralizada no Player

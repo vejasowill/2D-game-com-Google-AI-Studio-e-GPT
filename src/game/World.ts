@@ -1,51 +1,34 @@
 import { ChunkManager } from './ChunkManager.ts';
-import { DEFAULT_WORLD_HEIGHT, DEFAULT_WORLD_WIDTH, TILE_SIZE } from './constants.ts';
+import {
+  DEFAULT_WORLD_HEIGHT,
+  DEFAULT_WORLD_SEED,
+  DEFAULT_WORLD_WIDTH,
+  PLAYER_SIZE,
+  TILE_SIZE,
+} from './constants.ts';
+import { TileRegistry } from './TileRegistry.ts';
 import { Tile, TileCoord, TileType, WorldBounds, WorldCoord } from './types.ts';
+import { WorldGenerator } from './WorldGenerator.ts';
 
 export class World {
   public readonly width: number;
   public readonly height: number;
+  private readonly worldGenerator: WorldGenerator;
   private readonly chunkManager: ChunkManager;
 
   constructor(
     width: number = DEFAULT_WORLD_WIDTH,
     height: number = DEFAULT_WORLD_HEIGHT,
+    seed: number = DEFAULT_WORLD_SEED,
   ) {
     this.width = width;
     this.height = height;
-    this.chunkManager = new ChunkManager();
-
-    this.initializeTiles();
+    this.worldGenerator = new WorldGenerator(seed);
+    this.chunkManager = new ChunkManager(this.worldGenerator);
   }
 
-  private initializeTiles(): void {
-    for (let tileY = 0; tileY < this.height; tileY++) {
-      for (let tileX = 0; tileX < this.width; tileX++) {
-        this.chunkManager.setTile(tileX, tileY, TileType.GRASS);
-      }
-    }
-
-    this.applyTestWaterArea();
-  }
-
-  /**
-   * Configuração de área de teste para validação do terreno WATER (não caminhável).
-   * Centralizada em um único método para fácil remoção ou substituição futura por gerador procedural.
-   * Posicionada a leste do centro (X: 13..16, Y: 5..8), permitindo que o Player inicie
-   * no centro sobre GRASS com folga segura.
-   * Utiliza estritamente a API pública setTile() sem conhecer a estrutura interna de armazenamento em Chunks.
-   */
-  private applyTestWaterArea(): void {
-    const waterMinX = 13;
-    const waterMaxX = 16;
-    const waterMinY = 5;
-    const waterMaxY = 8;
-
-    for (let tileY = waterMinY; tileY <= waterMaxY; tileY++) {
-      for (let tileX = waterMinX; tileX <= waterMaxX; tileX++) {
-        this.setTile(tileX, tileY, TileType.WATER);
-      }
-    }
+  public getSeed(): number {
+    return this.worldGenerator.seed;
   }
 
   public getTile(tileX: number, tileY: number): Tile | null {
@@ -68,6 +51,60 @@ export class World {
 
   public isValidCoord(tileX: number, tileY: number): boolean {
     return this.isValidTileCoord(tileX, tileY);
+  }
+
+  /**
+   * Localiza a coordenada de tile caminhável mais próxima a partir de um ponto central desejado.
+   * Executa uma busca em anéis concêntricos a partir do centro até encontrar um tile com propriedade walkable.
+   * Não depende de coordenadas fixas e funciona dinamicamente para qualquer seed e tamanho de mundo.
+   */
+  public findNearestWalkableTile(
+    centerTileX: number = Math.floor(this.width / 2),
+    centerTileY: number = Math.floor(this.height / 2),
+  ): TileCoord {
+    const isWalkable = (tx: number, ty: number): boolean => {
+      const tile = this.getTile(tx, ty);
+      if (!tile) {
+        return false;
+      }
+      const def = TileRegistry.get(tile.type);
+      return def.walkable;
+    };
+
+    if (isWalkable(centerTileX, centerTileY)) {
+      return { tileX: centerTileX, tileY: centerTileY };
+    }
+
+    const maxRadius = Math.max(this.width, this.height);
+    for (let radius = 1; radius <= maxRadius; radius++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) {
+            continue;
+          }
+          const tx = centerTileX + dx;
+          const ty = centerTileY + dy;
+          if (isWalkable(tx, ty)) {
+            return { tileX: tx, tileY: ty };
+          }
+        }
+      }
+    }
+
+    return { tileX: centerTileX, tileY: centerTileY };
+  }
+
+  /**
+   * Retorna a posição inicial segura para o Player no espaço contínuo do mundo (pixels),
+   * centralizado dentro de um tile garantidamente caminhável (GRASS) próximo ao centro do mundo.
+   */
+  public getSafeSpawnWorldPosition(entitySize: number = PLAYER_SIZE): WorldCoord {
+    const spawnTile = this.findNearestWalkableTile();
+    const tileWorld = this.tileToWorld(spawnTile);
+    return {
+      worldX: tileWorld.worldX + (TILE_SIZE - entitySize) / 2,
+      worldY: tileWorld.worldY + (TILE_SIZE - entitySize) / 2,
+    };
   }
 
   /**
@@ -120,3 +157,4 @@ export class World {
     };
   }
 }
+

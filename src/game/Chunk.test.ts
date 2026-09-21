@@ -173,36 +173,46 @@ export function runChunkTests(): void {
   console.log('✓ Teste 10 passou: World.getTile() encapsula os chunks e respeita limites espaciais');
 
   // =========================================================================
-  // 11. Water continua existindo nas coordenadas atuais (X: 13..16, Y: 5..8)
+  // 11. Geração procedural produz terrenos válidos no World através de Chunks
   // =========================================================================
-  // Note que X=13..15 ficam no Chunk (0,0) e X=16 fica no Chunk (1,0)
-  for (let y = 5; y <= 8; y++) {
-    for (let x = 13; x <= 16; x++) {
+  let proceduralWaterFound = false;
+  let proceduralGrassFound = false;
+  for (let y = 0; y < world.height; y++) {
+    for (let x = 0; x < world.width; x++) {
       const tile = world.getTile(x, y);
-      assert(
-        tile?.type === TileType.WATER,
-        `Tile em (${x}, ${y}) deve ser WATER na lagoa de teste`,
-      );
+      if (tile?.type === TileType.WATER) proceduralWaterFound = true;
+      if (tile?.type === TileType.GRASS) proceduralGrassFound = true;
     }
   }
-  // Vizinho adjacente à água deve ser grama
-  assert(
-    world.getTile(12, 6)?.type === TileType.GRASS,
-    'Tile em (12, 6) a oeste da lagoa deve ser GRASS',
-  );
-  assert(
-    world.getTile(17, 6)?.type === TileType.GRASS,
-    'Tile em (17, 6) a leste da lagoa deve ser GRASS',
-  );
-  console.log('✓ Teste 11 passou: Lagoa de WATER preservada nas coordenadas originais através da fronteira de chunks');
+  assert(proceduralWaterFound, 'World deve conter WATER gerada proceduralmente');
+  assert(proceduralGrassFound, 'World deve conter GRASS predominante gerada proceduralmente');
+  console.log('✓ Teste 11 passou: Terrenos procedurais (GRASS e WATER) gerados com sucesso no World via Chunks');
 
   // =========================================================================
-  // 12. CollisionSystem continua impedindo o Player de atravessar WATER
+  // 12. CollisionSystem continua impedindo o Player de atravessar WATER procedural
   // =========================================================================
+  // Localiza dinamicamente um tile de água gerado com vizinho oeste caminhável (GRASS)
+  let testWaterX = -1;
+  let testWaterY = -1;
+  for (let y = 0; y < world.height; y++) {
+    for (let x = 1; x < world.width; x++) {
+      if (
+        world.getTile(x, y)?.type === TileType.WATER &&
+        world.getTile(x - 1, y)?.type === TileType.GRASS
+      ) {
+        testWaterX = x;
+        testWaterY = y;
+        break;
+      }
+    }
+    if (testWaterX !== -1) break;
+  }
+  assert(testWaterX !== -1, 'Deve existir ao menos uma fronteira horizontal GRASS -> WATER no mapa');
+
   const collision = new CollisionSystem(world);
-  const waterLeftEdgeX = 13 * TILE_SIZE;
+  const waterLeftEdgeX = testWaterX * TILE_SIZE;
   const player = new Player(
-    { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: 6 * TILE_SIZE },
+    { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: testWaterY * TILE_SIZE },
     DEFAULT_PLAYER_SPEED,
     PLAYER_SIZE,
   );
@@ -211,12 +221,13 @@ export function runChunkTests(): void {
   collision.movePlayer(player, { x: 1, y: 0 }, 0.2);
   assert(
     player.position.worldX === waterLeftEdgeX - PLAYER_SIZE,
-    'Player deve ser completamente bloqueado contra a borda da água armazenada no chunk',
+    'Player deve ser completamente bloqueado contra a borda da água procedural armazenada no chunk',
   );
 
-  console.log('✓ Teste 12 passou: CollisionSystem continua bloqueando atravessamento de WATER');
+  console.log('✓ Teste 12 passou: CollisionSystem continua bloqueando atravessamento de WATER procedural');
 
   console.log('[TEST] Todos os testes de Chunk e ChunkManager foram concluídos com sucesso!');
 }
 
 runChunkTests();
+

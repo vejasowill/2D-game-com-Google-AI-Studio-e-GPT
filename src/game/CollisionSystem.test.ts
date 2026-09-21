@@ -1,6 +1,7 @@
 import { DEFAULT_PLAYER_SPEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
 import { Player } from './Player.ts';
+import { TileType } from './types.ts';
 import { World } from './World.ts';
 
 function assert(condition: boolean, message: string): void {
@@ -17,9 +18,11 @@ export function runCollisionTests(): void {
   const bounds = world.getBounds();
 
   // Teste 1: Área totalmente sobre GRASS é caminhável
+  const spawnTile = world.findNearestWalkableTile();
+  const spawnWorld = world.tileToWorld(spawnTile);
   const centerWalkable = collision.canOccupyArea(
-    bounds.width / 2,
-    bounds.height / 2,
+    spawnWorld.worldX + (TILE_SIZE - PLAYER_SIZE) / 2,
+    spawnWorld.worldY + (TILE_SIZE - PLAYER_SIZE) / 2,
     PLAYER_SIZE,
     PLAYER_SIZE,
   );
@@ -130,8 +133,26 @@ export function runCollisionTests(): void {
   // Testes específicos de WATER (validação de terreno não caminhável)
   // =========================================================================
 
+  // Localiza dinamicamente um tile de água gerado com vizinho oeste caminhável (GRASS)
+  let waterTileX = -1;
+  let waterTileY = -1;
+  for (let y = 0; y < world.height; y++) {
+    for (let x = 1; x < world.width; x++) {
+      if (
+        world.getTile(x, y)?.type === TileType.WATER &&
+        world.getTile(x - 1, y)?.type === TileType.GRASS
+      ) {
+        waterTileX = x;
+        waterTileY = y;
+        break;
+      }
+    }
+    if (waterTileX !== -1) break;
+  }
+  assert(waterTileX !== -1, 'Mundo procedural deve conter ao menos um tile de WATER adjacente a GRASS');
+
   // Teste 6: Uma área totalmente sobre WATER deve retornar false em canOccupyArea()
-  const waterTileWorld = world.tileToWorld({ tileX: 14, tileY: 6 });
+  const waterTileWorld = world.tileToWorld({ tileX: waterTileX, tileY: waterTileY });
   const waterOccupied = collision.canOccupyArea(
     waterTileWorld.worldX,
     waterTileWorld.worldY,
@@ -142,7 +163,7 @@ export function runCollisionTests(): void {
   console.log('✓ Teste 6 passou: Área totalmente sobre WATER retorna false');
 
   // Teste 7: Uma área totalmente sobre GRASS deve continuar retornando true
-  const grassTileWorld = world.tileToWorld({ tileX: 2, tileY: 2 });
+  const grassTileWorld = world.tileToWorld({ tileX: waterTileX - 1, tileY: waterTileY });
   const grassOccupied = collision.canOccupyArea(
     grassTileWorld.worldX,
     grassTileWorld.worldY,
@@ -153,10 +174,10 @@ export function runCollisionTests(): void {
   console.log('✓ Teste 7 passou: Área totalmente sobre GRASS continua retornando true');
 
   // Teste 8: Uma área parcialmente sobre GRASS e WATER deve retornar false
-  const waterLeftEdgeX = 13 * TILE_SIZE; // Tile 13 é o início da lagoa de teste em X
+  const waterLeftEdgeX = waterTileX * TILE_SIZE;
   const partialWaterOccupied = collision.canOccupyArea(
     waterLeftEdgeX - PLAYER_SIZE / 2,
-    6 * TILE_SIZE,
+    waterTileY * TILE_SIZE,
     PLAYER_SIZE,
     PLAYER_SIZE,
   );
@@ -169,7 +190,7 @@ export function runCollisionTests(): void {
   // Teste 9: O Player deve conseguir aproximar-se da água, mas não atravessá-la
   const startX = waterLeftEdgeX - PLAYER_SIZE - 40;
   const approachPlayer = new Player(
-    { worldX: startX, worldY: 6 * TILE_SIZE },
+    { worldX: startX, worldY: waterTileY * TILE_SIZE },
     DEFAULT_PLAYER_SPEED,
     PLAYER_SIZE,
   );
@@ -187,7 +208,7 @@ export function runCollisionTests(): void {
 
   // Teste 10: Testar movimento contra a borda da água em pelo menos um eixo
   const edgePlayer = new Player(
-    { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: 6 * TILE_SIZE },
+    { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: waterTileY * TILE_SIZE },
     DEFAULT_PLAYER_SPEED,
     PLAYER_SIZE,
   );
@@ -200,7 +221,7 @@ export function runCollisionTests(): void {
   console.log('✓ Teste 10 passou: Movimento direto contra a borda da água é bloqueado');
 
   // Teste 11: Testar movimento diagonal contra a água para garantir que o Player deslize pelo eixo livre
-  const initialY = 6 * TILE_SIZE;
+  const initialY = waterTileY * TILE_SIZE;
   const slidePlayer = new Player(
     { worldX: waterLeftEdgeX - PLAYER_SIZE, worldY: initialY },
     DEFAULT_PLAYER_SPEED,
@@ -223,3 +244,4 @@ export function runCollisionTests(): void {
 
 // Execução direta via Node / tsx
 runCollisionTests();
+

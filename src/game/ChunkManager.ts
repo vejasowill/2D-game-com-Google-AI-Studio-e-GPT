@@ -1,6 +1,7 @@
 import { CHUNK_SIZE } from './constants.ts';
 import { Chunk } from './Chunk.ts';
 import { ChunkCoord, ChunkTileCoord, Tile, TileType } from './types.ts';
+import { WorldGenerator } from './WorldGenerator.ts';
 
 /**
  * Gerenciador de Chunks.
@@ -9,11 +10,21 @@ import { ChunkCoord, ChunkTileCoord, Tile, TileType } from './types.ts';
  * - Armazenar os chunks carregados na memória;
  * - Indexar chunks através de chave determinística isolada;
  * - Fornecer a conversão matemática centralizada entre coordenadas globais de tile e coordenadas de chunk/locais;
+ * - Solicitar geração sob demanda ao WorldGenerator quando um chunk ainda não existir na memória;
  * - Obter e modificar tiles no espaço de coordenadas globais;
  * - Suportar nativamente coordenadas positivas e negativas para futura expansão procedural.
  */
 export class ChunkManager {
   private readonly chunks: Map<string, Chunk> = new Map();
+  private readonly worldGenerator: WorldGenerator;
+
+  constructor(worldGenerator: WorldGenerator = new WorldGenerator()) {
+    this.worldGenerator = worldGenerator;
+  }
+
+  public getWorldGenerator(): WorldGenerator {
+    return this.worldGenerator;
+  }
 
   /**
    * Converte uma coordenada global de tile (positiva ou negativa) para sua respectiva
@@ -63,10 +74,24 @@ export class ChunkManager {
   }
 
   /**
-   * Obtém o chunk na coordenada especificada, se estiver carregado.
+   * Retorna o chunk se já estiver carregado na memória, sem disparar geração.
    */
-  public getChunk(chunkX: number, chunkY: number): Chunk | null {
+  public getLoadedChunk(chunkX: number, chunkY: number): Chunk | null {
     return this.chunks.get(this.getChunkKey(chunkX, chunkY)) ?? null;
+  }
+
+  /**
+   * Obtém o chunk na coordenada especificada.
+   * Caso ainda não esteja carregado na memória, solicita a geração sob demanda ao WorldGenerator.
+   */
+  public getChunk(chunkX: number, chunkY: number): Chunk {
+    const key = this.getChunkKey(chunkX, chunkY);
+    let chunk = this.chunks.get(key);
+    if (!chunk) {
+      chunk = this.worldGenerator.generateChunk({ chunkX, chunkY });
+      this.chunks.set(key, chunk);
+    }
+    return chunk;
   }
 
   /**
@@ -77,20 +102,10 @@ export class ChunkManager {
   }
 
   /**
-   * Obtém um chunk ou o cria e armazena caso ainda não exista.
+   * Obtém um chunk existente ou gera um novo através do WorldGenerator.
    */
-  public getOrCreateChunk(
-    chunkX: number,
-    chunkY: number,
-    defaultTileType: TileType = TileType.GRASS,
-  ): Chunk {
-    const key = this.getChunkKey(chunkX, chunkY);
-    let chunk = this.chunks.get(key);
-    if (!chunk) {
-      chunk = new Chunk(chunkX, chunkY, defaultTileType);
-      this.chunks.set(key, chunk);
-    }
-    return chunk;
+  public getOrCreateChunk(chunkX: number, chunkY: number): Chunk {
+    return this.getChunk(chunkX, chunkY);
   }
 
   /**
@@ -109,24 +124,21 @@ export class ChunkManager {
 
   /**
    * Obtém o tile em uma coordenada global de tile através do Chunk correspondente.
-   * Se o chunk não estiver carregado, retorna null.
+   * Carrega/gera o chunk sob demanda caso necessário.
    */
   public getTile(tileX: number, tileY: number): Tile | null {
     const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
     const chunk = this.getChunk(chunkCoord.chunkX, chunkCoord.chunkY);
-    if (!chunk) {
-      return null;
-    }
     return chunk.getTile(localX, localY);
   }
 
   /**
    * Define o tipo de tile em uma coordenada global através do Chunk correspondente.
-   * Cria o chunk automaticamente se ele ainda não estiver carregado.
+   * Garante que o chunk esteja carregado/gerado antes da modificação.
    */
   public setTile(tileX: number, tileY: number, type: TileType): boolean {
     const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
-    const chunk = this.getOrCreateChunk(chunkCoord.chunkX, chunkCoord.chunkY);
+    const chunk = this.getChunk(chunkCoord.chunkX, chunkCoord.chunkY);
     return chunk.setTile(localX, localY, type);
   }
 
@@ -137,3 +149,4 @@ export class ChunkManager {
     this.chunks.clear();
   }
 }
+
