@@ -3,18 +3,29 @@ import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { TileRegistry } from './TileRegistry.ts';
 import { Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
+import { WorldObject } from './WorldObject.ts';
+import { WorldObjectManager } from './WorldObjectManager.ts';
 
 export class World {
   private readonly worldGenerator: WorldGenerator;
   private readonly chunkManager: ChunkManager;
+  private readonly objectManager: WorldObjectManager;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
     this.worldGenerator = new WorldGenerator(seed);
     this.chunkManager = new ChunkManager(this.worldGenerator);
+    this.objectManager = new WorldObjectManager();
   }
 
   public getSeed(): number {
     return this.worldGenerator.seed;
+  }
+
+  /**
+   * Retorna o gerenciador dedicado de WorldObjects (separado do terreno/tiles).
+   */
+  public getObjectManager(): WorldObjectManager {
+    return this.objectManager;
   }
 
   /**
