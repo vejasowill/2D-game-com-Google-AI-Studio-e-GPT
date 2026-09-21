@@ -41,6 +41,9 @@ export class Game {
     // 5. Instanciar o Renderer gráfico
     this.renderer = new Renderer(canvas);
 
+    // Aplicar clamp inicial na Camera com os limites do mundo e tamanho da viewport
+    this.camera.clampToBounds(this.world.getBounds(), this.renderer.getViewportSize());
+
     // 6. Instanciar o GameLoop
     this.loop = new GameLoop({
       update: (dt: number) => this.update(dt),
@@ -75,13 +78,20 @@ export class Game {
   }
 
   private update(deltaTime: number): void {
+    // Obter limites espaciais do mundo e tamanho da viewport
+    const worldBounds = this.world.getBounds();
+    const viewport = this.renderer.getViewportSize();
+
     // Ordem: GameLoop -> Input -> Player.update -> Camera
-    // 1. Atualizar o Player com o estado do Input e deltaTime
-    this.player.update(deltaTime, this.input);
+    // 1. Atualizar o Player com o estado do Input, deltaTime e limites do mundo
+    this.player.update(deltaTime, this.input, worldBounds);
 
     // 2. Atualizar a Camera acompanhando a posição do Player
     const playerCenter = this.player.getCenter();
     this.camera.setPosition(playerCenter.worldX, playerCenter.worldY);
+
+    // 3. Limitar a Camera aos limites do mundo e viewport
+    this.camera.clampToBounds(worldBounds, viewport);
   }
 
   private render(): void {
@@ -92,12 +102,14 @@ export class Game {
   private setupResize(canvas: HTMLCanvasElement): void {
     this.handleWindowResize = () => {
       this.renderer.resize();
+      this.camera.clampToBounds(this.world.getBounds(), this.renderer.getViewportSize());
     };
     window.addEventListener('resize', this.handleWindowResize);
 
     if (canvas.parentElement) {
       this.resizeObserver = new ResizeObserver(() => {
         this.renderer.resize();
+        this.camera.clampToBounds(this.world.getBounds(), this.renderer.getViewportSize());
       });
       this.resizeObserver.observe(canvas.parentElement);
     }

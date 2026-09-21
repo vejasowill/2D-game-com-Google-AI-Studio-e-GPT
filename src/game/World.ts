@@ -1,5 +1,5 @@
 import { DEFAULT_WORLD_HEIGHT, DEFAULT_WORLD_WIDTH, TILE_SIZE } from './constants.ts';
-import { Tile, TileCoord, TileType, WorldCoord } from './types.ts';
+import { Tile, TileCoord, TileType, WorldBounds, WorldCoord } from './types.ts';
 
 export class World {
   public readonly width: number;
@@ -50,6 +50,22 @@ export class World {
    */
   public getWorldHeightInPixels(): number {
     return this.height * TILE_SIZE;
+  }
+
+  /**
+   * Retorna a representação explícita dos limites espaciais do mundo em coordenadas de mundo (pixels).
+   */
+  public getBounds(): WorldBounds {
+    const width = this.getWorldWidthInPixels();
+    const height = this.getWorldHeightInPixels();
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: width,
+      maxY: height,
+      width,
+      height,
+    };
   }
 
   /**

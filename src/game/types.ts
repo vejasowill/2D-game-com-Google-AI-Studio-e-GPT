@@ -30,6 +30,18 @@ export interface ScreenCoord {
   screenY: number;
 }
 
+/**
+ * Limites espaciais no sistema de coordenadas do mundo (em pixels)
+ */
+export interface WorldBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
 export interface Vector2D {
   x: number;
   y: number;
