@@ -58,9 +58,21 @@ export class Renderer {
 
     const viewport = this.getViewportSize();
 
-    // 2. Renderizar os tiles do mundo através da projeção da câmera
-    for (let tileY = 0; tileY < world.height; tileY++) {
-      for (let tileX = 0; tileX < world.width; tileX++) {
+    // 2. Determinar a faixa de tiles visíveis na viewport através da Camera
+    const topLeftWorld = camera.screenToWorld({ screenX: 0, screenY: 0 }, viewport);
+    const bottomRightWorld = camera.screenToWorld(
+      { screenX: viewport.width, screenY: viewport.height },
+      viewport,
+    );
+
+    // Margem de 1 tile para desenhar tiles que tocam parcialmente a borda da viewport
+    const minTileX = Math.floor(topLeftWorld.worldX / TILE_SIZE) - 1;
+    const maxTileX = Math.floor(bottomRightWorld.worldX / TILE_SIZE) + 1;
+    const minTileY = Math.floor(topLeftWorld.worldY / TILE_SIZE) - 1;
+    const maxTileY = Math.floor(bottomRightWorld.worldY / TILE_SIZE) + 1;
+
+    for (let tileY = minTileY; tileY <= maxTileY; tileY++) {
+      for (let tileX = minTileX; tileX <= maxTileX; tileX++) {
         const tile = world.getTile(tileX, tileY);
         if (!tile) continue;
 

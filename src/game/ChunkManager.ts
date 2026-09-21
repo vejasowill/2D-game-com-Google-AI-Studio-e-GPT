@@ -116,6 +116,21 @@ export class ChunkManager {
   }
 
   /**
+   * Retorna uma lista de todos os chunks atualmente carregados na memória.
+   * Não expõe a estrutura interna Map.
+   */
+  public getLoadedChunks(): Chunk[] {
+    return Array.from(this.chunks.values());
+  }
+
+  /**
+   * Retorna as coordenadas de todos os chunks atualmente carregados na memória.
+   */
+  public getLoadedChunkCoords(): ChunkCoord[] {
+    return Array.from(this.chunks.values()).map((chunk) => ({ ...chunk.coord }));
+  }
+
+  /**
    * Retorna a quantidade de chunks atualmente armazenados.
    */
   public getLoadedChunkCount(): number {

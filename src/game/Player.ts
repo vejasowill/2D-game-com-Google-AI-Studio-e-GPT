@@ -1,6 +1,6 @@
 import { DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
-import { InputSource, WorldBounds, WorldCoord } from './types.ts';
+import { InputSource, WorldCoord } from './types.ts';
 
 export class Player {
   public position: WorldCoord;
@@ -32,19 +32,6 @@ export class Player {
   }
 
   /**
-   * Mantém o Player estritamente dentro dos limites espaciais do mundo.
-   */
-  public clampToBounds(bounds: WorldBounds): void {
-    const minX = bounds.minX;
-    const maxX = bounds.maxX - this.size;
-    const minY = bounds.minY;
-    const maxY = bounds.maxY - this.size;
-
-    this.position.worldX = Math.max(minX, Math.min(this.position.worldX, maxX));
-    this.position.worldY = Math.max(minY, Math.min(this.position.worldY, maxY));
-  }
-
-  /**
    * Retorna o centro geométrico do jogador no espaço de coordenadas do mundo.
    */
   public getCenter(): WorldCoord {
@@ -54,4 +41,5 @@ export class Player {
     };
   }
 }
+
 

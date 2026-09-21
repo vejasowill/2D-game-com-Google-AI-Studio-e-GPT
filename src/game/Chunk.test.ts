@@ -147,9 +147,9 @@ export function runChunkTests(): void {
   console.log('✓ Teste 9 passou: Chunks diferentes possuem armazenamento de tiles isolado');
 
   // =========================================================================
-  // 10. World.getTile() continua funcionando exatamente como antes
+  // 10. World.getTile() encapsula os chunks e suporta espaço global
   // =========================================================================
-  const world = new World(20, 15);
+  const world = new World();
   assert(
     world.getTile(0, 0)?.type === TileType.GRASS,
     'World.getTile(0, 0) deve retornar GRASS',
@@ -159,26 +159,26 @@ export function runChunkTests(): void {
     'World.getTile(19, 14) deve retornar GRASS',
   );
   assert(
-    world.getTile(-1, 0) === null,
-    'World.getTile(-1, 0) fora dos limites deve retornar null',
+    world.getTile(-1, 0) !== null,
+    'World.getTile(-1, 0) em espaço global ilimitado deve retornar tile válido',
   );
   assert(
-    world.getTile(20, 0) === null,
-    'World.getTile(20, 0) fora dos limites deve retornar null',
+    world.getTile(20, 0) !== null,
+    'World.getTile(20, 0) em espaço global ilimitado deve retornar tile válido',
   );
   assert(
-    world.getTile(0, 15) === null,
-    'World.getTile(0, 15) fora dos limites deve retornar null',
+    world.getTile(NaN, 0) === null,
+    'World.getTile com coordenadas inválidas (NaN) deve retornar null',
   );
-  console.log('✓ Teste 10 passou: World.getTile() encapsula os chunks e respeita limites espaciais');
+  console.log('✓ Teste 10 passou: World.getTile() encapsula os chunks no espaço global');
 
   // =========================================================================
   // 11. Geração procedural produz terrenos válidos no World através de Chunks
   // =========================================================================
   let proceduralWaterFound = false;
   let proceduralGrassFound = false;
-  for (let y = 0; y < world.height; y++) {
-    for (let x = 0; x < world.width; x++) {
+  for (let y = 0; y < 20; y++) {
+    for (let x = 0; x < 20; x++) {
       const tile = world.getTile(x, y);
       if (tile?.type === TileType.WATER) proceduralWaterFound = true;
       if (tile?.type === TileType.GRASS) proceduralGrassFound = true;
@@ -194,8 +194,8 @@ export function runChunkTests(): void {
   // Localiza dinamicamente um tile de água gerado com vizinho oeste caminhável (GRASS)
   let testWaterX = -1;
   let testWaterY = -1;
-  for (let y = 0; y < world.height; y++) {
-    for (let x = 1; x < world.width; x++) {
+  for (let y = 0; y < 20; y++) {
+    for (let x = 1; x < 20; x++) {
       if (
         world.getTile(x, y)?.type === TileType.WATER &&
         world.getTile(x - 1, y)?.type === TileType.GRASS
@@ -207,7 +207,7 @@ export function runChunkTests(): void {
     }
     if (testWaterX !== -1) break;
   }
-  assert(testWaterX !== -1, 'Deve existir ao menos uma fronteira horizontal GRASS -> WATER no mapa');
+  assert(testWaterX !== -1, 'Deve existir ao menos uma fronteira horizontal GRASS -> WATER na região amostrada');
 
   const collision = new CollisionSystem(world);
   const waterLeftEdgeX = testWaterX * TILE_SIZE;

@@ -1,28 +1,14 @@
 import { ChunkManager } from './ChunkManager.ts';
-import {
-  DEFAULT_WORLD_HEIGHT,
-  DEFAULT_WORLD_SEED,
-  DEFAULT_WORLD_WIDTH,
-  PLAYER_SIZE,
-  TILE_SIZE,
-} from './constants.ts';
+import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { TileRegistry } from './TileRegistry.ts';
-import { Tile, TileCoord, TileType, WorldBounds, WorldCoord } from './types.ts';
+import { Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
 
 export class World {
-  public readonly width: number;
-  public readonly height: number;
   private readonly worldGenerator: WorldGenerator;
   private readonly chunkManager: ChunkManager;
 
-  constructor(
-    width: number = DEFAULT_WORLD_WIDTH,
-    height: number = DEFAULT_WORLD_HEIGHT,
-    seed: number = DEFAULT_WORLD_SEED,
-  ) {
-    this.width = width;
-    this.height = height;
+  constructor(seed: number = DEFAULT_WORLD_SEED) {
     this.worldGenerator = new WorldGenerator(seed);
     this.chunkManager = new ChunkManager(this.worldGenerator);
   }
@@ -31,6 +17,10 @@ export class World {
     return this.worldGenerator.seed;
   }
 
+  /**
+   * Consulta um tile global em qualquer coordenada espacial inteira (positiva, negativa ou distante).
+   * O ChunkManager carrega/gera o chunk sob demanda de forma determinística.
+   */
   public getTile(tileX: number, tileY: number): Tile | null {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return null;
@@ -38,6 +28,9 @@ export class World {
     return this.chunkManager.getTile(tileX, tileY);
   }
 
+  /**
+   * Define o tipo de tile em uma coordenada global.
+   */
   public setTile(tileX: number, tileY: number, type: TileType): boolean {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return false;
@@ -45,8 +38,11 @@ export class World {
     return this.chunkManager.setTile(tileX, tileY, type);
   }
 
+  /**
+   * O espaço do World é ilimitado em coordenadas de grade; qualquer par de inteiros é uma coordenada válida.
+   */
   public isValidTileCoord(tileX: number, tileY: number): boolean {
-    return tileX >= 0 && tileX < this.width && tileY >= 0 && tileY < this.height;
+    return Number.isInteger(tileX) && Number.isInteger(tileY);
   }
 
   public isValidCoord(tileX: number, tileY: number): boolean {
@@ -54,13 +50,19 @@ export class World {
   }
 
   /**
-   * Localiza a coordenada de tile caminhável mais próxima a partir de um ponto central desejado.
-   * Executa uma busca em anéis concêntricos a partir do centro até encontrar um tile com propriedade walkable.
-   * Não depende de coordenadas fixas e funciona dinamicamente para qualquer seed e tamanho de mundo.
+   * O World é ilimitado e não possui bordas globais finitas.
+   */
+  public hasBounds(): boolean {
+    return false;
+  }
+
+  /**
+   * Localiza a coordenada de tile caminhável mais próxima a partir de um ponto de referência global (padrão: 0, 0).
+   * Executa busca em anéis concêntricos determinísticos ao redor da origem.
    */
   public findNearestWalkableTile(
-    centerTileX: number = Math.floor(this.width / 2),
-    centerTileY: number = Math.floor(this.height / 2),
+    startTileX: number = 0,
+    startTileY: number = 0,
   ): TileCoord {
     const isWalkable = (tx: number, ty: number): boolean => {
       const tile = this.getTile(tx, ty);
@@ -71,19 +73,20 @@ export class World {
       return def.walkable;
     };
 
-    if (isWalkable(centerTileX, centerTileY)) {
-      return { tileX: centerTileX, tileY: centerTileY };
+    if (isWalkable(startTileX, startTileY)) {
+      return { tileX: startTileX, tileY: startTileY };
     }
 
-    const maxRadius = Math.max(this.width, this.height);
-    for (let radius = 1; radius <= maxRadius; radius++) {
+    // Busca concêntrica determinística em anéis
+    const maxSearchRadius = 128;
+    for (let radius = 1; radius <= maxSearchRadius; radius++) {
       for (let dy = -radius; dy <= radius; dy++) {
         for (let dx = -radius; dx <= radius; dx++) {
           if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) {
             continue;
           }
-          const tx = centerTileX + dx;
-          const ty = centerTileY + dy;
+          const tx = startTileX + dx;
+          const ty = startTileY + dy;
           if (isWalkable(tx, ty)) {
             return { tileX: tx, tileY: ty };
           }
@@ -91,49 +94,19 @@ export class World {
       }
     }
 
-    return { tileX: centerTileX, tileY: centerTileY };
+    return { tileX: startTileX, tileY: startTileY };
   }
 
   /**
    * Retorna a posição inicial segura para o Player no espaço contínuo do mundo (pixels),
-   * centralizado dentro de um tile garantidamente caminhável (GRASS) próximo ao centro do mundo.
+   * centralizado dentro de um tile garantidamente caminhável próximo à origem (0,0).
    */
   public getSafeSpawnWorldPosition(entitySize: number = PLAYER_SIZE): WorldCoord {
-    const spawnTile = this.findNearestWalkableTile();
+    const spawnTile = this.findNearestWalkableTile(0, 0);
     const tileWorld = this.tileToWorld(spawnTile);
     return {
       worldX: tileWorld.worldX + (TILE_SIZE - entitySize) / 2,
       worldY: tileWorld.worldY + (TILE_SIZE - entitySize) / 2,
-    };
-  }
-
-  /**
-   * Retorna a largura total do mundo em coordenadas de mundo (pixels).
-   */
-  public getWorldWidthInPixels(): number {
-    return this.width * TILE_SIZE;
-  }
-
-  /**
-   * Retorna a altura total do mundo em coordenadas de mundo (pixels).
-   */
-  public getWorldHeightInPixels(): number {
-    return this.height * TILE_SIZE;
-  }
-
-  /**
-   * Retorna a representação explícita dos limites espaciais do mundo em coordenadas de mundo (pixels).
-   */
-  public getBounds(): WorldBounds {
-    const width = this.getWorldWidthInPixels();
-    const height = this.getWorldHeightInPixels();
-    return {
-      minX: 0,
-      minY: 0,
-      maxX: width,
-      maxY: height,
-      width,
-      height,
     };
   }
 
@@ -157,4 +130,5 @@ export class World {
     };
   }
 }
+
 

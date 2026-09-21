@@ -13,9 +13,8 @@ function assert(condition: boolean, message: string): void {
 export function runCollisionTests(): void {
   console.log('[TEST] Iniciando testes do CollisionSystem...');
 
-  const world = new World(20, 15);
+  const world = new World();
   const collision = new CollisionSystem(world);
-  const bounds = world.getBounds();
 
   // Teste 1: Área totalmente sobre GRASS é caminhável
   const spawnTile = world.findNearestWalkableTile();
@@ -29,56 +28,23 @@ export function runCollisionTests(): void {
   assert(centerWalkable === true, 'Área central totalmente sobre GRASS deve ser caminhável');
   console.log('✓ Teste 1 passou: Área totalmente sobre GRASS é caminhável');
 
-  // Teste 2: Coordenada fora do World não permite ocupação
-  const outsideNegativeX = collision.canOccupyArea(-10, 50, PLAYER_SIZE, PLAYER_SIZE);
-  assert(outsideNegativeX === false, 'Coordenada negativa em X não deve permitir ocupação');
+  // Teste 2: Coordenadas em espaço ilimitado (positivas e negativas) com GRASS permitem ocupação
+  world.setTile(-10, -10, TileType.GRASS);
+  world.setTile(100, 100, TileType.GRASS);
+  const negativeGrassWalkable = collision.canOccupyArea(-10 * TILE_SIZE, -10 * TILE_SIZE, PLAYER_SIZE, PLAYER_SIZE);
+  assert(negativeGrassWalkable === true, 'Coordenada negativa sobre GRASS deve permitir ocupação');
+  const distantGrassWalkable = collision.canOccupyArea(100 * TILE_SIZE, 100 * TILE_SIZE, PLAYER_SIZE, PLAYER_SIZE);
+  assert(distantGrassWalkable === true, 'Coordenada distante sobre GRASS deve permitir ocupação');
+  console.log('✓ Teste 2 passou: Coordenadas livres em espaço ilimitado (negativas e distantes) permitem ocupação');
 
-  const outsideNegativeY = collision.canOccupyArea(50, -10, PLAYER_SIZE, PLAYER_SIZE);
-  assert(outsideNegativeY === false, 'Coordenada negativa em Y não deve permitir ocupação');
+  // Teste 3: Coordenadas sobre terreno não caminhável (WATER) continuam bloqueadas
+  world.setTile(-5, -5, TileType.WATER);
+  const negativeWaterBlocked = collision.canOccupyArea(-5 * TILE_SIZE, -5 * TILE_SIZE, PLAYER_SIZE, PLAYER_SIZE);
+  assert(negativeWaterBlocked === false, 'Tile de WATER em coordenada negativa deve bloquear ocupação');
+  console.log('✓ Teste 3 passou: Terreno não caminhável (WATER) bloqueia ocupação independentemente do quadrante');
 
-  const outsideBeyondX = collision.canOccupyArea(
-    bounds.width + 10,
-    50,
-    PLAYER_SIZE,
-    PLAYER_SIZE,
-  );
-  assert(outsideBeyondX === false, 'Coordenada além do maxX não deve permitir ocupação');
-
-  const outsideBeyondY = collision.canOccupyArea(
-    50,
-    bounds.height + 10,
-    PLAYER_SIZE,
-    PLAYER_SIZE,
-  );
-  assert(outsideBeyondY === false, 'Coordenada além do maxY não deve permitir ocupação');
-  console.log('✓ Teste 2 passou: Coordenadas fora do World não permitem ocupação');
-
-  // Teste 3: Área parcialmente fora dos limites não é considerada livre
-  const partialLeft = collision.canOccupyArea(-1, 50, PLAYER_SIZE, PLAYER_SIZE);
-  assert(partialLeft === false, 'Área parcialmente fora pela esquerda não deve ser livre');
-
-  const partialRight = collision.canOccupyArea(
-    bounds.width - PLAYER_SIZE + 1,
-    50,
-    PLAYER_SIZE,
-    PLAYER_SIZE,
-  );
-  assert(partialRight === false, 'Área parcialmente fora pela direita não deve ser livre');
-
-  const partialTop = collision.canOccupyArea(50, -1, PLAYER_SIZE, PLAYER_SIZE);
-  assert(partialTop === false, 'Área parcialmente fora pelo topo não deve ser livre');
-
-  const partialBottom = collision.canOccupyArea(
-    50,
-    bounds.height - PLAYER_SIZE + 1,
-    PLAYER_SIZE,
-    PLAYER_SIZE,
-  );
-  assert(partialBottom === false, 'Área parcialmente fora pelo fundo não deve ser livre');
-  console.log('✓ Teste 3 passou: Áreas parcialmente fora dos limites não são consideradas livres');
-
-  // Teste 4: Consulta de tiles tocados funciona corretamente nos limites do mapa
-  // Canto superior esquerdo: (0, 0)
+  // Teste 4: Consulta de tiles tocados funciona corretamente na origem, quadrantes negativos e múltiplos tiles
+  // Origem: (0, 0)
   const originTiles = collision.getTilesInArea(0, 0, PLAYER_SIZE, PLAYER_SIZE);
   assert(originTiles.length === 1, 'Origem (0, 0) com tamanho 24 deve tocar exatamente 1 tile');
   assert(
@@ -86,18 +52,10 @@ export function runCollisionTests(): void {
     'Origem deve tocar exatamente o tile (0, 0)',
   );
 
-  // Canto inferior direito: (bounds.width - PLAYER_SIZE, bounds.height - PLAYER_SIZE)
-  const maxTiles = collision.getTilesInArea(
-    bounds.width - PLAYER_SIZE,
-    bounds.height - PLAYER_SIZE,
-    PLAYER_SIZE,
-    PLAYER_SIZE,
-  );
-  assert(maxTiles.length === 1, 'Canto inferior direito encostado deve tocar exatamente 1 tile');
-  assert(
-    maxTiles[0].tileX === world.width - 1 && maxTiles[0].tileY === world.height - 1,
-    'Canto inferior direito deve tocar o último tile válido',
-  );
+  // Quadrante negativo
+  const negTiles = collision.getTilesInArea(-TILE_SIZE, -TILE_SIZE, PLAYER_SIZE, PLAYER_SIZE);
+  assert(negTiles.length === 1, 'Coordenada (-32, -32) com tamanho 24 deve tocar exatamente o tile (-1, -1)');
+  assert(negTiles[0].tileX === -1 && negTiles[0].tileY === -1, 'Tile negativo tocado deve ser (-1, -1)');
 
   // Cruzamento de fronteira entre tiles na horizontal
   const crossingHoriz = collision.getTilesInArea(20, 0, PLAYER_SIZE, PLAYER_SIZE);
@@ -116,18 +74,23 @@ export function runCollisionTests(): void {
     crossingBoth.length === 4,
     'Área cruzando ambos os eixos deve tocar exatamente 4 tiles',
   );
-  console.log('✓ Teste 4 passou: Consulta de tiles tocados nos limites do mapa funciona com precisão');
+  console.log('✓ Teste 4 passou: Consulta geométrica de tiles tocados funciona com precisão em todo o espaço');
 
-  // Teste 5: Resolução de colisão e deslizamento por eixo
-  const player = new Player({ worldX: 0, worldY: 50 }, DEFAULT_PLAYER_SPEED, PLAYER_SIZE);
-  // Movimento na diagonal para cima e esquerda: x negativo (bloqueado na borda), y negativo (livre)
-  collision.movePlayer(player, { x: -1, y: -1 }, 0.1);
-  assert(player.position.worldX === 0, 'Player não deve ultrapassar a borda esquerda (worldX=0)');
+  // Teste 5: Resolução de colisão e deslizamento por eixo contra obstáculo de WATER
+  world.setTile(5, 5, TileType.WATER);
+  world.setTile(4, 5, TileType.GRASS);
+  world.setTile(4, 4, TileType.GRASS);
+  const slideStartX = 5 * TILE_SIZE - PLAYER_SIZE;
+  const slideStartY = 5 * TILE_SIZE;
+  const player = new Player({ worldX: slideStartX, worldY: slideStartY }, DEFAULT_PLAYER_SPEED, PLAYER_SIZE);
+  // Movimento na diagonal para direita (+x, bloqueado pela água) e cima (-y, livre)
+  collision.movePlayer(player, { x: 1, y: -1 }, 0.1);
+  assert(player.position.worldX === slideStartX, 'Player não deve atravessar o obstáculo no eixo X');
   assert(
-    player.position.worldY < 50,
-    'Player deve deslizar no eixo Y para cima mesmo com o eixo X bloqueado',
+    player.position.worldY < slideStartY,
+    'Player deve deslizar no eixo Y livremente mesmo com o eixo X bloqueado',
   );
-  console.log('✓ Teste 5 passou: Resolução por eixo permite deslizamento suave');
+  console.log('✓ Teste 5 passou: Resolução por eixo permite deslizamento suave contra obstáculos');
 
   // =========================================================================
   // Testes específicos de WATER (validação de terreno não caminhável)
@@ -136,8 +99,8 @@ export function runCollisionTests(): void {
   // Localiza dinamicamente um tile de água gerado com vizinho oeste caminhável (GRASS)
   let waterTileX = -1;
   let waterTileY = -1;
-  for (let y = 0; y < world.height; y++) {
-    for (let x = 1; x < world.width; x++) {
+  for (let y = 0; y < 20; y++) {
+    for (let x = 1; x < 20; x++) {
       if (
         world.getTile(x, y)?.type === TileType.WATER &&
         world.getTile(x - 1, y)?.type === TileType.GRASS
