@@ -73,7 +73,9 @@ export class Renderer {
 
     for (let tileY = minTileY; tileY <= maxTileY; tileY++) {
       for (let tileX = minTileX; tileX <= maxTileX; tileX++) {
-        const tile = world.getTile(tileX, tileY);
+        // Leitura pura: consulta somente se o chunk já estiver carregado na memória.
+        // O Renderer NUNCA provoca a geração de chunks.
+        const tile = world.getLoadedTile(tileX, tileY);
         if (!tile) continue;
 
         // Passo 1: Converter Coordenadas de Tile -> Coordenadas de Mundo (pixels)

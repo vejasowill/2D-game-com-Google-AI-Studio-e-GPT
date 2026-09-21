@@ -116,6 +116,13 @@ export class ChunkManager {
   }
 
   /**
+   * Descarrega um chunk da memória (alias explícito para ciclo de vida de streaming).
+   */
+  public unloadChunk(chunkX: number, chunkY: number): boolean {
+    return this.removeChunk(chunkX, chunkY);
+  }
+
+  /**
    * Retorna uma lista de todos os chunks atualmente carregados na memória.
    * Não expõe a estrutura interna Map.
    */
@@ -144,6 +151,19 @@ export class ChunkManager {
   public getTile(tileX: number, tileY: number): Tile | null {
     const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
     const chunk = this.getChunk(chunkCoord.chunkX, chunkCoord.chunkY);
+    return chunk.getTile(localX, localY);
+  }
+
+  /**
+   * Consulta um tile SOMENTE se o chunk correspondente já estiver carregado na memória.
+   * NUNCA gera um novo chunk. Retorna null se o chunk não estiver carregado.
+   */
+  public getLoadedTile(tileX: number, tileY: number): Tile | null {
+    const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
+    const chunk = this.getLoadedChunk(chunkCoord.chunkX, chunkCoord.chunkY);
+    if (!chunk) {
+      return null;
+    }
     return chunk.getTile(localX, localY);
   }
 

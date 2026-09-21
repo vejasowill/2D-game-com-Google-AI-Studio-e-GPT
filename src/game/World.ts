@@ -29,6 +29,25 @@ export class World {
   }
 
   /**
+   * Consulta um tile global SOMENTE se o chunk correspondente já estiver carregado na memória.
+   * NUNCA gera um novo chunk. Retorna null caso o chunk ainda não esteja carregado.
+   * Utilizado pelo Renderer para garantir leitura pura sem causar geração acidental.
+   */
+  public getLoadedTile(tileX: number, tileY: number): Tile | null {
+    if (!this.isValidTileCoord(tileX, tileY)) {
+      return null;
+    }
+    return this.chunkManager.getLoadedTile(tileX, tileY);
+  }
+
+  /**
+   * Retorna o ChunkManager subjacente para subsistemas dedicados (como ChunkStreamingSystem).
+   */
+  public getChunkManager(): ChunkManager {
+    return this.chunkManager;
+  }
+
+  /**
    * Define o tipo de tile em uma coordenada global.
    */
   public setTile(tileX: number, tileY: number, type: TileType): boolean {
