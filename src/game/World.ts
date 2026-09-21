@@ -1,5 +1,5 @@
-import { DEFAULT_WORLD_HEIGHT, DEFAULT_WORLD_WIDTH } from './constants.ts';
-import { Tile, TileType } from './types.ts';
+import { DEFAULT_WORLD_HEIGHT, DEFAULT_WORLD_WIDTH, TILE_SIZE } from './constants.ts';
+import { Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 
 export class World {
   public readonly width: number;
@@ -18,27 +18,61 @@ export class World {
   }
 
   private initializeTiles(): void {
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        this.tiles[this.getIndex(x, y)] = {
+    for (let tileY = 0; tileY < this.height; tileY++) {
+      for (let tileX = 0; tileX < this.width; tileX++) {
+        this.tiles[this.getIndex(tileX, tileY)] = {
           type: TileType.GRASS,
         };
       }
     }
   }
 
-  public getTile(x: number, y: number): Tile | null {
-    if (!this.isValidCoord(x, y)) {
+  public getTile(tileX: number, tileY: number): Tile | null {
+    if (!this.isValidTileCoord(tileX, tileY)) {
       return null;
     }
-    return this.tiles[this.getIndex(x, y)];
+    return this.tiles[this.getIndex(tileX, tileY)];
   }
 
-  public isValidCoord(x: number, y: number): boolean {
-    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  public isValidTileCoord(tileX: number, tileY: number): boolean {
+    return tileX >= 0 && tileX < this.width && tileY >= 0 && tileY < this.height;
   }
 
-  private getIndex(x: number, y: number): number {
-    return y * this.width + x;
+  /**
+   * Retorna a largura total do mundo em coordenadas de mundo (pixels).
+   */
+  public getWorldWidthInPixels(): number {
+    return this.width * TILE_SIZE;
+  }
+
+  /**
+   * Retorna a altura total do mundo em coordenadas de mundo (pixels).
+   */
+  public getWorldHeightInPixels(): number {
+    return this.height * TILE_SIZE;
+  }
+
+  /**
+   * Conversão explícita: Coordenadas de Tile -> Coordenadas de Mundo (pixels).
+   */
+  public tileToWorld(tileCoord: TileCoord): WorldCoord {
+    return {
+      worldX: tileCoord.tileX * TILE_SIZE,
+      worldY: tileCoord.tileY * TILE_SIZE,
+    };
+  }
+
+  /**
+   * Conversão explícita: Coordenadas de Mundo (pixels) -> Coordenadas de Tile.
+   */
+  public worldToTile(worldCoord: WorldCoord): TileCoord {
+    return {
+      tileX: Math.floor(worldCoord.worldX / TILE_SIZE),
+      tileY: Math.floor(worldCoord.worldY / TILE_SIZE),
+    };
+  }
+
+  private getIndex(tileX: number, tileY: number): number {
+    return tileY * this.width + tileX;
   }
 }

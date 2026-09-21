@@ -1,7 +1,7 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { World } from './World.ts';
-import { TileType } from './types.ts';
+import { TileType, ViewportSize } from './types.ts';
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -9,7 +9,7 @@ export class Renderer {
   private width: number = 0;
   private height: number = 0;
 
-  // Visual styling
+  // Estilo visual inicial do terreno
   private readonly clearColor: string = '#121316';
   private readonly grassColor: string = '#2e7d32';
   private readonly tileBorderColor: string = '#256629';
@@ -29,7 +29,7 @@ export class Renderer {
     const displayWidth = parent ? parent.clientWidth : window.innerWidth;
     const displayHeight = parent ? parent.clientHeight : window.innerHeight;
 
-    // Support devicePixelRatio for sharp rendering on mobile / high-DPI screens
+    // Suporte a telas de alta densidade de pixels (Retina / mobile)
     const dpr = window.devicePixelRatio || 1;
     this.width = displayWidth;
     this.height = displayHeight;
@@ -42,48 +42,58 @@ export class Renderer {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  public getViewportSize(): ViewportSize {
+    return { width: this.width, height: this.height };
+  }
+
+  /**
+   * Transforma os dados do World em pixels na tela através da Camera
+   */
   public render(world: World, camera: Camera): void {
     // 1. Limpar fundo escuro
     this.ctx.fillStyle = this.clearColor;
     this.ctx.fillRect(0, 0, this.width, this.height);
 
+    const viewport = this.getViewportSize();
+
     // 2. Renderizar os tiles do mundo através da projeção da câmera
-    for (let y = 0; y < world.height; y++) {
-      for (let x = 0; x < world.width; x++) {
-        const tile = world.getTile(x, y);
+    for (let tileY = 0; tileY < world.height; tileY++) {
+      for (let tileX = 0; tileX < world.width; tileX++) {
+        const tile = world.getTile(tileX, tileY);
         if (!tile) continue;
 
-        // Converter posição do tile no mundo (pixels) para tela via Camera
-        const worldX = x * TILE_SIZE;
-        const worldY = y * TILE_SIZE;
-        const screenPos = camera.worldToScreen(
-          worldX,
-          worldY,
-          this.width,
-          this.height,
-        );
+        // Passo 1: Converter Coordenadas de Tile -> Coordenadas de Mundo (pixels)
+        const worldCoord = world.tileToWorld({ tileX, tileY });
 
-        // Frustum culling (descartar tiles fora da visualização visível)
+        // Passo 2: Converter Coordenadas de Mundo -> Coordenadas de Tela via Camera
+        const screenCoord = camera.worldToScreen(worldCoord, viewport);
+
+        // Passo 3: Frustum culling simples e direto
         if (
-          screenPos.x + TILE_SIZE < 0 ||
-          screenPos.x > this.width ||
-          screenPos.y + TILE_SIZE < 0 ||
-          screenPos.y > this.height
+          screenCoord.screenX + TILE_SIZE < 0 ||
+          screenCoord.screenX > this.width ||
+          screenCoord.screenY + TILE_SIZE < 0 ||
+          screenCoord.screenY > this.height
         ) {
           continue;
         }
 
-        // Desenhar quadrado representativo do tile
+        // Passo 4: Desenhar o tile no Canvas de acordo com seu tipo
         if (tile.type === TileType.GRASS) {
           this.ctx.fillStyle = this.grassColor;
-          this.ctx.fillRect(screenPos.x, screenPos.y, TILE_SIZE, TILE_SIZE);
+          this.ctx.fillRect(
+            screenCoord.screenX,
+            screenCoord.screenY,
+            TILE_SIZE,
+            TILE_SIZE,
+          );
 
-          // Contorno fino para evidenciar a malha de tiles
+          // Contorno sutil para evidenciar a malha de tiles
           this.ctx.strokeStyle = this.tileBorderColor;
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(
-            screenPos.x + 0.5,
-            screenPos.y + 0.5,
+            screenCoord.screenX + 0.5,
+            screenCoord.screenY + 0.5,
             TILE_SIZE - 1,
             TILE_SIZE - 1,
           );

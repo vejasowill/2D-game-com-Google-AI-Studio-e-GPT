@@ -1,47 +1,38 @@
-import { Vector2D } from './types.ts';
+import { ScreenCoord, ViewportSize, WorldCoord } from './types.ts';
 
 export class Camera {
-  public x: number;
-  public y: number;
+  // Ponto de foco central da câmera em coordenadas de mundo (pixels)
+  public worldX: number;
+  public worldY: number;
 
-  constructor(initialX: number = 0, initialY: number = 0) {
-    this.x = initialX;
-    this.y = initialY;
+  constructor(initialWorldX: number = 0, initialWorldY: number = 0) {
+    this.worldX = initialWorldX;
+    this.worldY = initialWorldY;
   }
 
-  public setPosition(x: number, y: number): void {
-    this.x = x;
-    this.y = y;
+  public setPosition(worldX: number, worldY: number): void {
+    this.worldX = worldX;
+    this.worldY = worldY;
   }
 
   /**
-   * Converte coordenadas do mundo em coordenadas da tela (viewport).
-   * O ponto central da tela corresponde à posição (x, y) da câmera no mundo.
+   * Conversão explícita: Coordenadas de Mundo (pixels) -> Coordenadas de Tela (pixels).
+   * O ponto central da câmera (worldX, worldY) é projetado no centro geométrico da viewport.
    */
-  public worldToScreen(
-    worldX: number,
-    worldY: number,
-    viewportWidth: number,
-    viewportHeight: number,
-  ): Vector2D {
+  public worldToScreen(worldCoord: WorldCoord, viewport: ViewportSize): ScreenCoord {
     return {
-      x: Math.floor(worldX - this.x + viewportWidth / 2),
-      y: Math.floor(worldY - this.y + viewportHeight / 2),
+      screenX: Math.floor(worldCoord.worldX - this.worldX + viewport.width / 2),
+      screenY: Math.floor(worldCoord.worldY - this.worldY + viewport.height / 2),
     };
   }
 
   /**
-   * Converte coordenadas da tela (ex: clique ou cursor) em coordenadas do mundo.
+   * Conversão explícita: Coordenadas de Tela (pixels) -> Coordenadas de Mundo (pixels).
    */
-  public screenToWorld(
-    screenX: number,
-    screenY: number,
-    viewportWidth: number,
-    viewportHeight: number,
-  ): Vector2D {
+  public screenToWorld(screenCoord: ScreenCoord, viewport: ViewportSize): WorldCoord {
     return {
-      x: screenX - viewportWidth / 2 + this.x,
-      y: screenY - viewportHeight / 2 + this.y,
+      worldX: screenCoord.screenX - viewport.width / 2 + this.worldX,
+      worldY: screenCoord.screenY - viewport.height / 2 + this.worldY,
     };
   }
 }
