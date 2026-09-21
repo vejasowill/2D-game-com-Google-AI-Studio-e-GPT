@@ -1,10 +1,11 @@
+import { ChunkManager } from './ChunkManager.ts';
 import { DEFAULT_WORLD_HEIGHT, DEFAULT_WORLD_WIDTH, TILE_SIZE } from './constants.ts';
 import { Tile, TileCoord, TileType, WorldBounds, WorldCoord } from './types.ts';
 
 export class World {
   public readonly width: number;
   public readonly height: number;
-  private readonly tiles: Tile[];
+  private readonly chunkManager: ChunkManager;
 
   constructor(
     width: number = DEFAULT_WORLD_WIDTH,
@@ -12,7 +13,7 @@ export class World {
   ) {
     this.width = width;
     this.height = height;
-    this.tiles = new Array(width * height);
+    this.chunkManager = new ChunkManager();
 
     this.initializeTiles();
   }
@@ -20,9 +21,7 @@ export class World {
   private initializeTiles(): void {
     for (let tileY = 0; tileY < this.height; tileY++) {
       for (let tileX = 0; tileX < this.width; tileX++) {
-        this.tiles[this.getIndex(tileX, tileY)] = {
-          type: TileType.GRASS,
-        };
+        this.chunkManager.setTile(tileX, tileY, TileType.GRASS);
       }
     }
 
@@ -34,6 +33,7 @@ export class World {
    * Centralizada em um único método para fácil remoção ou substituição futura por gerador procedural.
    * Posicionada a leste do centro (X: 13..16, Y: 5..8), permitindo que o Player inicie
    * no centro sobre GRASS com folga segura.
+   * Utiliza estritamente a API pública setTile() sem conhecer a estrutura interna de armazenamento em Chunks.
    */
   private applyTestWaterArea(): void {
     const waterMinX = 13;
@@ -43,11 +43,7 @@ export class World {
 
     for (let tileY = waterMinY; tileY <= waterMaxY; tileY++) {
       for (let tileX = waterMinX; tileX <= waterMaxX; tileX++) {
-        if (this.isValidTileCoord(tileX, tileY)) {
-          this.tiles[this.getIndex(tileX, tileY)] = {
-            type: TileType.WATER,
-          };
-        }
+        this.setTile(tileX, tileY, TileType.WATER);
       }
     }
   }
@@ -56,15 +52,14 @@ export class World {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return null;
     }
-    return this.tiles[this.getIndex(tileX, tileY)];
+    return this.chunkManager.getTile(tileX, tileY);
   }
 
   public setTile(tileX: number, tileY: number, type: TileType): boolean {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return false;
     }
-    this.tiles[this.getIndex(tileX, tileY)] = { type };
-    return true;
+    return this.chunkManager.setTile(tileX, tileY, type);
   }
 
   public isValidTileCoord(tileX: number, tileY: number): boolean {
@@ -123,9 +118,5 @@ export class World {
       tileX: Math.floor(worldCoord.worldX / TILE_SIZE),
       tileY: Math.floor(worldCoord.worldY / TILE_SIZE),
     };
-  }
-
-  private getIndex(tileX: number, tileY: number): number {
-    return tileY * this.width + tileX;
   }
 }

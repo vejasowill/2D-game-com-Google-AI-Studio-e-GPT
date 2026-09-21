@@ -18,6 +18,23 @@ export interface TileCoord {
 }
 
 /**
+ * Coordenadas de grade do chunk (índices inteiros no grid de chunks, ex: 0,0, -1,0)
+ */
+export interface ChunkCoord {
+  chunkX: number;
+  chunkY: number;
+}
+
+/**
+ * Mapeamento de um tile para as coordenadas de seu Chunk e a posição local correspondente dentro dele.
+ */
+export interface ChunkTileCoord {
+  chunkCoord: ChunkCoord;
+  localX: number;
+  localY: number;
+}
+
+/**
  * Coordenadas contínuas no espaço do mundo em pixels (ex: 0..width*TILE_SIZE)
  */
 export interface WorldCoord {
