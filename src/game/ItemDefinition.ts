@@ -1,0 +1,39 @@
+/**
+ * Categoria genérica opcional de um item.
+ * Utilizada para agrupamento lógico sem acoplamento a regras de gameplay.
+ */
+export type ItemCategory = 'material' | 'flora' | 'consumable' | 'tool' | 'misc';
+
+/**
+ * Definição imutável e declarativa de um item.
+ *
+ * Princípios arquiteturais:
+ * 1. Descreve as propriedades intrínsecas e estáveis do item, NÃO sua quantidade ou posição no mundo.
+ * 2. NÃO herda de WorldObject nem possui coordenadas físicas.
+ * 3. NÃO contém lógica de inventário, combate, ferramentas ou crafting.
+ * 4. spriteAssetId é uma referência simbólica que pode ou não ter um asset carregado no AssetManager.
+ */
+export interface ItemDefinition {
+  /** Identificador único, estável e canônico do item (ex: 'wood', 'stone', 'flower') */
+  readonly id: string;
+
+  /** Nome amigável de exibição (ex: 'Madeira', 'Pedra') */
+  readonly name: string;
+
+  /** Quantidade máxima permitida em um único ItemStack (inteiro positivo > 0) */
+  readonly maxStackSize: number;
+
+  /** Categoria genérica opcional do item */
+  readonly category?: ItemCategory | string;
+
+  /** Identificador opcional do asset no AssetManager para renderização visual pixel art */
+  readonly spriteAssetId?: string;
+
+  /** Descrição textual opcional */
+  readonly description?: string;
+}
+
+/**
+ * Tamanho padrão de empilhamento para itens gerais.
+ */
+export const DEFAULT_MAX_STACK_SIZE = 99;

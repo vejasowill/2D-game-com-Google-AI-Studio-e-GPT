@@ -5,6 +5,7 @@ import { CollisionSystem } from './CollisionSystem.ts';
 import { GameLoop } from './GameLoop.ts';
 import { Input } from './Input.ts';
 import { InteractionSystem } from './InteractionSystem.ts';
+import { ItemRegistry } from './ItemRegistry.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -26,6 +27,9 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     // 1. Instanciar o World (dados dos tiles e autoridade de chunks)
     this.world = new World();
+
+    // Inicializar o registro central de itens declarativos
+    ItemRegistry.ensureInitialized();
 
     // 2. Instanciar o sistema de colisão espacial baseado no World
     this.collisionSystem = new CollisionSystem(this.world);
