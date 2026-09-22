@@ -4,8 +4,10 @@ import { ChunkStreamingSystem } from './ChunkStreamingSystem.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
 import { GameLoop } from './GameLoop.ts';
 import { Input } from './Input.ts';
+import { InteractionSystem } from './InteractionSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
+import { TestInteractableObject } from './TestInteractableObject.ts';
 import { World } from './World.ts';
 
 export class Game {
@@ -15,6 +17,7 @@ export class Game {
   private input: Input;
   private collisionSystem: CollisionSystem;
   private streamingSystem: ChunkStreamingSystem;
+  private interactionSystem: InteractionSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private resizeObserver: ResizeObserver | null = null;
@@ -36,23 +39,52 @@ export class Game {
     // Carga inicial dos chunks ao redor da posição de spawn do Player
     this.streamingSystem.forceUpdate(this.player.position);
 
-    // 5. Instanciar a Camera centralizada no Player
+    // 5. Instanciar o sistema genérico de interação desacoplado
+    this.interactionSystem = new InteractionSystem();
+
+    // Adicionar um objeto interativo técnico inicial próximo ao spawn para validação no preview
+    const demoInteractable = new TestInteractableObject(
+      'test_beacon_spawn',
+      {
+        worldX: initialPlayerPosition.worldX + 48,
+        worldY: initialPlayerPosition.worldY,
+      },
+      24,
+      24,
+      'Inspecionar',
+      0,
+    );
+    this.world.getObjectManager().addObject(demoInteractable);
+
+    // 6. Instanciar a Camera centralizada no Player
     const playerCenter = this.player.getCenter();
     this.camera = new Camera(playerCenter.worldX, playerCenter.worldY);
 
-    // 6. Instanciar o subsistema de Input
+    // 7. Instanciar o subsistema de Input
     this.input = new Input();
 
-    // 7. Instanciar o Renderer gráfico (somente leitura de chunks carregados)
+    // 8. Instanciar o Renderer gráfico (somente leitura de chunks carregados)
     this.renderer = new Renderer(canvas);
 
-    // 8. Instanciar o GameLoop
+    // 9. Instanciar o GameLoop
     this.loop = new GameLoop({
       update: (dt: number) => this.update(dt),
       render: () => this.render(),
     });
 
     this.setupResize(canvas);
+  }
+
+  public getInteractionSystem(): InteractionSystem {
+    return this.interactionSystem;
+  }
+
+  public getWorld(): World {
+    return this.world;
+  }
+
+  public getPlayer(): Player {
+    return this.player;
   }
 
   public start(): void {
@@ -80,28 +112,32 @@ export class Game {
   }
 
   private update(deltaTime: number): void {
-    // Ordem arquitetural:
-    // GameLoop -> Input -> ChunkStreamingSystem (prepara chunks) -> Player.update(dt, input, collisionSystem) -> ChunkStreamingSystem (se cruzou fronteira) -> Camera -> Renderer
+    // Ordem arquitetural estrita:
+    // Input -> Player.update -> Streaming / World -> InteractionSystem.update -> Camera.update -> Renderer.render
 
     // 1. Assegurar que os chunks da posição atual do Player estejam preparados no ChunkStreamingSystem
-    // (Otimizado: retorna false imediatamente se o player estiver no mesmo chunk)
     this.streamingSystem.update(this.player.position);
 
     // 2. Atualizar o Player com o estado do Input, deltaTime e resolução de colisão pelo CollisionSystem
-    // O CollisionSystem consulta exclusivamente tiles carregados (world.getLoadedTile)
     this.player.update(deltaTime, this.input, this.collisionSystem);
 
     // 3. Se o deslocamento do Player cruzou uma fronteira de chunk, preparar os novos chunks imediatamente
     this.streamingSystem.update(this.player.position);
 
-    // 4. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
+    // 4. Executar o sistema de interação (busca determinística e execução de ação discreta se acionada)
+    this.interactionSystem.update(this.player, this.world, this.input);
+
+    // 5. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
+    this.input.clearFrameState();
+
+    // 6. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
     const playerCenter = this.player.getCenter();
     this.camera.follow(playerCenter.worldX, playerCenter.worldY, deltaTime);
   }
 
   private render(): void {
-    // Renderiza o mundo e o jogador através da câmera no canvas
-    this.renderer.render(this.world, this.camera, this.player);
+    // Renderiza o mundo, o jogador e os prompts/debug de interação através da câmera no canvas
+    this.renderer.render(this.world, this.camera, this.player, this.interactionSystem);
   }
 
   private setupResize(canvas: HTMLCanvasElement): void {

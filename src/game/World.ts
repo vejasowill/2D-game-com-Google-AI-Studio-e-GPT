@@ -137,6 +137,13 @@ export class World {
   }
 
   /**
+   * Retorna a quantidade de chunks atualmente carregados na memória.
+   */
+  public getLoadedChunkCount(): number {
+    return this.chunkManager.getLoadedChunkCount();
+  }
+
+  /**
    * Define o tipo de tile em uma coordenada global.
    */
   public setTile(tileX: number, tileY: number, type: TileType): boolean {

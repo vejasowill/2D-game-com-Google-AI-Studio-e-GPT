@@ -1,5 +1,6 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
+import { InteractionSystem } from './InteractionSystem.ts';
 import { Player } from './Player.ts';
 import { PlayerRenderer } from './PlayerRenderer.ts';
 import { SpriteRenderer } from './SpriteRenderer.ts';
@@ -63,7 +64,12 @@ export class Renderer {
   /**
    * Transforma os dados do World em pixels na tela através da Camera
    */
-  public render(world: World, camera: Camera, player: Player): void {
+  public render(
+    world: World,
+    camera: Camera,
+    player: Player,
+    interactionSystem?: InteractionSystem,
+  ): void {
     // 1. Limpar fundo escuro
     this.ctx.fillStyle = this.clearColor;
     this.ctx.fillRect(0, 0, this.width, this.height);
@@ -155,6 +161,12 @@ export class Renderer {
 
     if (!playerRendered) {
       this.playerRenderer.render(player, camera, viewport, this.width, this.height);
+    }
+
+    // 4. Renderizar feedback técnico de interação e debug se disponível
+    if (interactionSystem) {
+      interactionSystem.renderPrompt(this.ctx, camera, viewport);
+      interactionSystem.renderDebug(this.ctx, camera, viewport, player);
     }
   }
 
@@ -315,6 +327,28 @@ export class Renderer {
         this.ctx.beginPath();
         this.ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
         this.ctx.fill();
+        break;
+      }
+
+      case 'test_interactable': {
+        // Sombra na base
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(screenX + width / 2, screenY + height - 1, width / 2, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Caixa técnica representativa para teste de interação (âmbar/dourado)
+        this.ctx.fillStyle = '#d97706';
+        this.ctx.fillRect(screenX, screenY, width, height);
+
+        // Borda sutil escura
+        this.ctx.strokeStyle = '#78350f';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(screenX + 0.5, screenY + 0.5, width - 1, height - 1);
+
+        // Indicador no centro
+        this.ctx.fillStyle = '#fef3c7';
+        this.ctx.fillRect(screenX + width / 2 - 3, screenY + height / 2 - 3, 6, 6);
         break;
       }
 

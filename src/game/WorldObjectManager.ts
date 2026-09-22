@@ -52,16 +52,10 @@ export class WorldObjectManager {
       return false;
     }
 
-    // Proteger contra mutações externas criando objeto com posição defensiva
-    const internalObject: WorldObject = {
-      ...object,
-      position: { worldX: object.position.worldX, worldY: object.position.worldY },
-    };
-
-    this.objectsById.set(internalObject.id, internalObject);
+    this.objectsById.set(object.id, object);
 
     // Indexar nas células espaciais tocadas pelo AABB do objeto
-    const touchedChunks = this.getChunksTouchedByObject(internalObject);
+    const touchedChunks = this.getChunksTouchedByObject(object);
     for (const chunkCoord of touchedChunks) {
       const key = WorldObjectManager.getChunkKey(chunkCoord.chunkX, chunkCoord.chunkY);
       let set = this.chunkIndex.get(key);
@@ -69,7 +63,7 @@ export class WorldObjectManager {
         set = new Set<string>();
         this.chunkIndex.set(key, set);
       }
-      set.add(internalObject.id);
+      set.add(object.id);
     }
 
     return true;
@@ -98,13 +92,10 @@ export class WorldObjectManager {
       oldChunks.map((c) => WorldObjectManager.getChunkKey(c.chunkX, c.chunkY)),
     );
 
-    // Atualizar posição de forma atômica
-    const updatedObject: WorldObject = {
-      ...object,
-      position: { worldX: newPosition.worldX, worldY: newPosition.worldY },
-    };
+    // Atualizar posição mantendo a instância do objeto
+    (object as { position: WorldCoord }).position = { worldX: newPosition.worldX, worldY: newPosition.worldY };
 
-    const newChunks = this.getChunksTouchedByObject(updatedObject);
+    const newChunks = this.getChunksTouchedByObject(object);
     const newKeys = new Set(
       newChunks.map((c) => WorldObjectManager.getChunkKey(c.chunkX, c.chunkY)),
     );
@@ -147,9 +138,14 @@ export class WorldObjectManager {
       }
     }
 
-    // Atualizar o registro do objeto
-    this.objectsById.set(id, updatedObject);
     return true;
+  }
+
+  /**
+   * Alias de conveniência para mover ou atualizar a posição de um objeto.
+   */
+  public updateObjectPosition(id: string, newPosition: WorldCoord): boolean {
+    return this.moveObject(id, newPosition);
   }
 
   /**

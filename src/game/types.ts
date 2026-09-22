@@ -87,6 +87,9 @@ export interface Vector2D {
  */
 export interface InputSource {
   getMovementDirection(): Vector2D;
+  isActionPressed?(action: string): boolean;
+  isActionJustPressed?(action: string): boolean;
+  clearFrameState?(): void;
   destroy?(): void;
 }
 
