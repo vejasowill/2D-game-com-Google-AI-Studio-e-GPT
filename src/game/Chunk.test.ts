@@ -180,12 +180,14 @@ export function runChunkTests(): void {
   // =========================================================================
   let proceduralWaterFound = false;
   let proceduralGrassFound = false;
-  for (let y = 0; y < 20; y++) {
-    for (let x = 0; x < 20; x++) {
+  for (let y = -50; y < 50; y++) {
+    for (let x = -50; x < 50; x++) {
       const tile = world.getTile(x, y);
       if (tile?.type === TileType.WATER) proceduralWaterFound = true;
       if (tile?.type === TileType.GRASS) proceduralGrassFound = true;
+      if (proceduralWaterFound && proceduralGrassFound) break;
     }
+    if (proceduralWaterFound && proceduralGrassFound) break;
   }
   assert(proceduralWaterFound, 'World deve conter WATER gerada proceduralmente');
   assert(proceduralGrassFound, 'World deve conter GRASS predominante gerada proceduralmente');
@@ -197,8 +199,8 @@ export function runChunkTests(): void {
   // Localiza dinamicamente um tile de água gerado com vizinho oeste caminhável (GRASS)
   let testWaterX = -1;
   let testWaterY = -1;
-  for (let y = 0; y < 20; y++) {
-    for (let x = 1; x < 20; x++) {
+  for (let y = -50; y < 50; y++) {
+    for (let x = -50; x < 50; x++) {
       if (
         world.getTile(x, y)?.type === TileType.WATER &&
         world.getTile(x - 1, y)?.type === TileType.GRASS

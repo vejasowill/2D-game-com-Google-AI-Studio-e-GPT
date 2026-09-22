@@ -79,23 +79,23 @@ export function runWorldGeneratorTests(): void {
   console.log('✓ Teste 3 passou: Gerar Chunk (0,0) duas vezes produz resultados idênticos');
 
   // =========================================================================
-  // 4. Gerar Chunk (0,0) e (1,0) produz resultados diferentes em geral
+  // 4. Chunks em regiões espaciais diferentes produzem terrenos diferentes em geral
   // =========================================================================
   const chunk00 = genA.generateChunk({ chunkX: 0, chunkY: 0 });
-  const chunk10 = genA.generateChunk({ chunkX: 1, chunkY: 0 });
+  const chunkDistant = genA.generateChunk({ chunkX: -9, chunkY: -9 });
 
   let differs = false;
   for (let ly = 0; ly < CHUNK_SIZE; ly++) {
     for (let lx = 0; lx < CHUNK_SIZE; lx++) {
-      if (chunk00.getTile(lx, ly)?.type !== chunk10.getTile(lx, ly)?.type) {
+      if (chunk00.getTile(lx, ly)?.type !== chunkDistant.getTile(lx, ly)?.type) {
         differs = true;
         break;
       }
     }
     if (differs) break;
   }
-  assert(differs, 'Teste 4: Chunks em coordenadas espaciais diferentes devem produzir terrenos diferentes em geral');
-  console.log('✓ Teste 4 passou: Gerar Chunk (0,0) e (1,0) produz resultados diferentes');
+  assert(differs, 'Teste 4: Chunks em regiões espaciais diferentes devem produzir terrenos diferentes em geral');
+  console.log('✓ Teste 4 passou: Chunks em regiões espaciais diferentes produzem terrenos diferentes');
 
   // =========================================================================
   // 5. Alterar a seed deve produzir uma configuração de terreno diferente em geral

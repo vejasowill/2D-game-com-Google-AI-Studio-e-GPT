@@ -38,53 +38,88 @@ export class WorldGenerator {
 
   // Sementes derivadas para cada campo escalar (garantindo ortogonalidade dos ruídos)
   private readonly seedElevation: number;
+  private readonly seedElevationMeso: number;
   private readonly seedTemperature: number;
+  private readonly seedTemperatureMeso: number;
   private readonly seedHumidity: number;
+  private readonly seedHumidityMeso: number;
 
-  // Tamanhos de grade para interpolação contínua (macro-regiões climáticas)
-  // Grade de elevação (8 tiles = 256px = meia chunk): formas costeiras e corpos d'água orgânicos
-  private static readonly ELEVATION_GRID_SIZE = 8;
-  // Grade de temperatura (48 tiles = 1536px): grandes zonas climáticas
-  private static readonly TEMPERATURE_GRID_SIZE = 48;
-  // Grade de umidade (36 tiles = 1152px): frentes de umidade e pluviosidade
-  private static readonly HUMIDITY_GRID_SIZE = 36;
+  // Escalas hierárquicas para interpolação contínua (Macroescala + Mesoescala)
+  // Macroescala de elevação (80 tiles = 2560px = 5 chunks): oceanos amplos e grandes massas continentais/cordilheiras
+  private static readonly ELEVATION_MACRO_GRID_SIZE = 80;
+  // Mesoescala de elevação (24 tiles = 768px = 1.5 chunks): recorte costeiro orgânico e variações orográficas locais
+  private static readonly ELEVATION_MESO_GRID_SIZE = 24;
+
+  // Macroescala de temperatura (160 tiles = 5120px = 10 chunks): grandes zonas climáticas equatoriais e temperadas
+  private static readonly TEMPERATURE_MACRO_GRID_SIZE = 160;
+  // Mesoescala de temperatura (40 tiles = 1280px = 2.5 chunks): microclimas e frentes térmicas suaves
+  private static readonly TEMPERATURE_MESO_GRID_SIZE = 40;
+
+  // Macroescala de umidade (144 tiles = 4608px = 9 chunks): grandes bacias hidrográficas e cinturões secos
+  private static readonly HUMIDITY_MACRO_GRID_SIZE = 144;
+  // Mesoescala de umidade (32 tiles = 1024px = 2 chunks): transições e variações de pluviosidade natural
+  private static readonly HUMIDITY_MESO_GRID_SIZE = 32;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
     this.seed = seed | 0;
-    // Derivação de seeds específicas e ortogonais para cada campo escalar
+    // Derivação de seeds específicas e ortogonais para cada campo escalar e oitava
     this.seedElevation = (this.seed ^ 0x3d7b5129) | 0;
+    this.seedElevationMeso = (this.seed ^ 0x4a92c317) | 0;
     this.seedTemperature = (this.seed ^ 0x6e9f1a85) | 0;
+    this.seedTemperatureMeso = (this.seed ^ 0x5c8e2b71) | 0;
     this.seedHumidity = (this.seed ^ 0x1b56c4e9) | 0;
+    this.seedHumidityMeso = (this.seed ^ 0x7d3a9f14) | 0;
   }
 
   /**
    * Amostra a elevação matemática contínua na coordenada global [0, 1).
+   * Combina Macroescala (80%) com Mesoescala (20%) para formar grandes bacias
+   * oceânicas e cordilheiras contínuas sem bordas retas ou ilhas artificiais desconexas.
    * Valores < WATER_ELEVATION (0.35) definem massas de água (OCEAN -> WATER).
    */
   public getElevationAt(globalTileX: number, globalTileY: number): number {
-    return this.sampleSmoothField(
+    const macro = this.sampleSmoothField(
       this.seedElevation,
       globalTileX,
       globalTileY,
-      WorldGenerator.ELEVATION_GRID_SIZE,
+      WorldGenerator.ELEVATION_MACRO_GRID_SIZE,
     );
+    const meso = this.sampleSmoothField(
+      this.seedElevationMeso,
+      globalTileX,
+      globalTileY,
+      WorldGenerator.ELEVATION_MESO_GRID_SIZE,
+    );
+    const elev = macro * 0.80 + meso * 0.20;
+
+    if (elev <= 0) return 0;
+    if (elev >= 1) return 0.999999;
+    return elev;
   }
 
   /**
    * Amostra a temperatura contínua na coordenada global [0, 1).
-   * Incorpora um gradiente sutil de macro-latitude no eixo Y combinado ao ruído suave.
+   * Combina Macroescala (82%) e Mesoescala (18%) com um gradiente suave de
+   * latitude continental no eixo Y, sem ruído de alta frequência.
    */
   public getTemperatureAt(globalTileX: number, globalTileY: number): number {
-    const noise = this.sampleSmoothField(
+    const macro = this.sampleSmoothField(
       this.seedTemperature,
       globalTileX,
       globalTileY,
-      WorldGenerator.TEMPERATURE_GRID_SIZE,
+      WorldGenerator.TEMPERATURE_MACRO_GRID_SIZE,
     );
+    const meso = this.sampleSmoothField(
+      this.seedTemperatureMeso,
+      globalTileX,
+      globalTileY,
+      WorldGenerator.TEMPERATURE_MESO_GRID_SIZE,
+    );
+    const noise = macro * 0.85 + meso * 0.15;
 
-    // Gradiente suave de latitude: modulação de onda senoidal de período amplo (256 tiles)
+    // Gradiente suave de latitude: período de escala continental (~1047 tiles = ~65 chunks)
     // Mantém a variação suave e determinística sem estourar o intervalo [0, 1)
-    const latitudeFactor = Math.sin(globalTileY * 0.02) * 0.15;
+    const latitudeFactor = Math.sin(globalTileY * 0.006) * 0.15;
     const temp = noise + latitudeFactor;
 
     // Garante normalização estrita em [0, 1)
@@ -95,15 +130,27 @@ export class WorldGenerator {
 
   /**
    * Amostra a umidade contínua na coordenada global [0, 1).
-   * Campo espacial desacoplado da temperatura e elevação.
+   * Combina Macroescala (85%) e Mesoescala (15%) para formar grandes frentes
+   * pluviais contínuas com contornos naturais.
    */
   public getHumidityAt(globalTileX: number, globalTileY: number): number {
-    return this.sampleSmoothField(
+    const macro = this.sampleSmoothField(
       this.seedHumidity,
       globalTileX,
       globalTileY,
-      WorldGenerator.HUMIDITY_GRID_SIZE,
+      WorldGenerator.HUMIDITY_MACRO_GRID_SIZE,
     );
+    const meso = this.sampleSmoothField(
+      this.seedHumidityMeso,
+      globalTileX,
+      globalTileY,
+      WorldGenerator.HUMIDITY_MESO_GRID_SIZE,
+    );
+    const hum = macro * 0.85 + meso * 0.15;
+
+    if (hum <= 0) return 0;
+    if (hum >= 1) return 0.999999;
+    return hum;
   }
 
   /**

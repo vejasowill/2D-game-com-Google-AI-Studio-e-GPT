@@ -11,11 +11,11 @@ export const BIOME_THRESHOLDS = {
   // Elevação acima deste valor é classificada como região de altitude (MOUNTAIN)
   MOUNTAIN_ELEVATION: 0.72,
   // Limiar de temperatura para regiões secas/quentes (DESERT)
-  DESERT_TEMPERATURE: 0.62,
+  DESERT_TEMPERATURE: 0.52,
   // Limiar de umidade máxima para desertos
-  DESERT_HUMIDITY: 0.38,
+  DESERT_HUMIDITY: 0.46,
   // Limiar de umidade mínima para florestas
-  FOREST_HUMIDITY: 0.55,
+  FOREST_HUMIDITY: 0.54,
 } as const;
 
 /**
