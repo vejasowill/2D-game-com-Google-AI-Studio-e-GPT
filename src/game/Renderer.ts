@@ -1,6 +1,7 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
-import { Player, PlayerDirection } from './Player.ts';
+import { Player } from './Player.ts';
+import { PlayerRenderer } from './PlayerRenderer.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
 import { ViewportSize } from './types.ts';
@@ -14,18 +15,8 @@ export class Renderer {
   // Estilo visual inicial de fundo
   private readonly clearColor: string = '#121316';
 
-  // Paleta da representação vetorial do Player (aventureiro top-down)
-  private readonly playerShadowColor: string = 'rgba(0, 0, 0, 0.28)';
-  private readonly tunicColor: string = '#2563eb';
-  private readonly tunicBorderColor: string = '#1d4ed8';
-  private readonly skinColor: string = '#f8d7b8';
-  private readonly hairColor: string = '#5c2c16';
-  private readonly hairShadowColor: string = '#381a08';
-  private readonly pantsColor: string = '#1e3a8a';
-  private readonly bootsColor: string = '#3e2723';
-  private readonly beltColor: string = '#78350f';
-  private readonly buckleColor: string = '#fbbf24';
-  private readonly eyeColor: string = '#0f172a';
+  // Sub-renderizador dedicado do Player
+  public readonly playerRenderer: PlayerRenderer;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -34,6 +25,7 @@ export class Renderer {
       throw new Error('Failed to obtain CanvasRenderingContext2D.');
     }
     this.ctx = context;
+    this.playerRenderer = new PlayerRenderer(this.ctx);
     this.resize();
   }
 
@@ -142,253 +134,21 @@ export class Renderer {
     // Ordenar objetos pelo limite inferior (linha de base no mundo)
     visibleObjects.sort((a, b) => (a.position.worldY + a.height) - (b.position.worldY + b.height));
 
-    const playerBaseY = player.position.worldY + player.size;
+    // Ordenação Y baseada estritamente na linha física dos pés do jogador (footBaseY)
+    const playerBaseY = player.getFootBaseY();
     let playerRendered = false;
 
     for (const obj of visibleObjects) {
       const objBaseY = obj.position.worldY + obj.height;
       if (!playerRendered && playerBaseY <= objBaseY) {
-        this.renderPlayer(player, camera, viewport);
+        this.playerRenderer.render(player, camera, viewport, this.width, this.height);
         playerRendered = true;
       }
       this.renderWorldObject(obj, camera, viewport);
     }
 
     if (!playerRendered) {
-      this.renderPlayer(player, camera, viewport);
-    }
-  }
-
-  /**
-   * Renderiza a representação procedural do jogador com frustum culling.
-   * Apresenta silhueta humana top-down limpa com corpo, cabeça, pernas, sombra elíptica
-   * e orientação vetorial direcionada, perfeitamente alinhada à ancoragem dos pés.
-   */
-  private renderPlayer(player: Player, camera: Camera, viewport: ViewportSize): void {
-    const screenCoord = camera.worldToScreen(player.position, viewport);
-    const { screenX, screenY } = screenCoord;
-
-    // Frustum culling com margem para a altura gráfica da cabeça (-24px) e sombra (+4px)
-    if (
-      screenX + player.size + 16 < 0 ||
-      screenX - 16 > this.width ||
-      screenY + player.size + 8 < 0 ||
-      screenY - 28 > this.height
-    ) {
-      return;
-    }
-
-    const cx = screenX + player.size / 2;
-    const baseY = screenY + player.size;
-    const dir = player.direction;
-
-    // 1. Sombra elíptica no chão (puramente visual, desacoplada da física)
-    this.ctx.fillStyle = this.playerShadowColor;
-    this.ctx.beginPath();
-    this.ctx.ellipse(cx, baseY - 1, 9, 3.5, 0, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // 2. Pernas e Pés (base física do personagem)
-    switch (dir) {
-      case PlayerDirection.LEFT: {
-        // Calça de perfil
-        this.ctx.fillStyle = this.pantsColor;
-        this.ctx.fillRect(cx - 4, baseY - 7, 8, 4);
-
-        // Botas viradas para a esquerda
-        this.ctx.fillStyle = this.bootsColor;
-        this.ctx.fillRect(cx - 6, baseY - 3, 6, 3);
-        this.ctx.fillRect(cx + 1, baseY - 3, 3, 3);
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(cx - 6, baseY - 1, 6, 1);
-        break;
-      }
-
-      case PlayerDirection.RIGHT: {
-        // Calça de perfil
-        this.ctx.fillStyle = this.pantsColor;
-        this.ctx.fillRect(cx - 4, baseY - 7, 8, 4);
-
-        // Botas viradas para a direita
-        this.ctx.fillStyle = this.bootsColor;
-        this.ctx.fillRect(cx - 4, baseY - 3, 3, 3);
-        this.ctx.fillRect(cx, baseY - 3, 6, 3);
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(cx, baseY - 1, 6, 1);
-        break;
-      }
-
-      case PlayerDirection.UP: {
-        // Calça de costas
-        this.ctx.fillStyle = this.pantsColor;
-        this.ctx.fillRect(cx - 5, baseY - 7, 10, 4);
-        this.ctx.fillStyle = this.tunicBorderColor;
-        this.ctx.fillRect(cx - 0.5, baseY - 7, 1, 4);
-
-        // Calcanhares
-        this.ctx.fillStyle = this.bootsColor;
-        this.ctx.fillRect(cx - 5, baseY - 3, 4, 3);
-        this.ctx.fillRect(cx + 1, baseY - 3, 4, 3);
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(cx - 5, baseY - 1, 4, 1);
-        this.ctx.fillRect(cx + 1, baseY - 1, 4, 1);
-        break;
-      }
-
-      case PlayerDirection.DOWN:
-      default: {
-        // Calça frontal
-        this.ctx.fillStyle = this.pantsColor;
-        this.ctx.fillRect(cx - 5, baseY - 7, 10, 4);
-        this.ctx.fillStyle = this.tunicBorderColor;
-        this.ctx.fillRect(cx - 0.5, baseY - 7, 1, 4);
-
-        // Botas frontais
-        this.ctx.fillStyle = this.bootsColor;
-        this.ctx.fillRect(cx - 5, baseY - 3, 4, 3);
-        this.ctx.fillRect(cx + 1, baseY - 3, 4, 3);
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(cx - 5, baseY - 1, 4, 1);
-        this.ctx.fillRect(cx + 1, baseY - 1, 4, 1);
-        break;
-      }
-    }
-
-    // 3. Tronco e Túnica (corpo)
-    this.ctx.fillStyle = this.tunicColor;
-    this.ctx.fillRect(cx - 6, baseY - 16, 12, 9);
-    this.ctx.strokeStyle = this.tunicBorderColor;
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(cx - 5.5, baseY - 15.5, 11, 8);
-
-    // Cinto de couro
-    this.ctx.fillStyle = this.beltColor;
-    this.ctx.fillRect(cx - 6, baseY - 9, 12, 2);
-
-    // Detalhe da fivela e braços conforme a orientação
-    switch (dir) {
-      case PlayerDirection.LEFT: {
-        // Fivela lateral esquerda
-        this.ctx.fillStyle = this.buckleColor;
-        this.ctx.fillRect(cx - 5, baseY - 9, 2.5, 2);
-
-        // Braço esquerdo projetado
-        this.ctx.fillStyle = this.tunicColor;
-        this.ctx.fillRect(cx - 7, baseY - 15, 3, 6);
-        this.ctx.fillStyle = this.skinColor;
-        this.ctx.fillRect(cx - 7, baseY - 9, 3, 2);
-        break;
-      }
-
-      case PlayerDirection.RIGHT: {
-        // Fivela lateral direita
-        this.ctx.fillStyle = this.buckleColor;
-        this.ctx.fillRect(cx + 2.5, baseY - 9, 2.5, 2);
-
-        // Braço direito projetado
-        this.ctx.fillStyle = this.tunicColor;
-        this.ctx.fillRect(cx + 4, baseY - 15, 3, 6);
-        this.ctx.fillStyle = this.skinColor;
-        this.ctx.fillRect(cx + 4, baseY - 9, 3, 2);
-        break;
-      }
-
-      case PlayerDirection.UP: {
-        // Braços laterais de costas
-        this.ctx.fillStyle = this.tunicColor;
-        this.ctx.fillRect(cx - 8, baseY - 15, 2, 6);
-        this.ctx.fillRect(cx + 6, baseY - 15, 2, 6);
-        break;
-      }
-
-      case PlayerDirection.DOWN:
-      default: {
-        // Fivela dourada central
-        this.ctx.fillStyle = this.buckleColor;
-        this.ctx.fillRect(cx - 1.5, baseY - 9, 3, 2);
-
-        // Braços e mãos frontais
-        this.ctx.fillStyle = this.tunicColor;
-        this.ctx.fillRect(cx - 8, baseY - 15, 2, 5);
-        this.ctx.fillRect(cx + 6, baseY - 15, 2, 5);
-        this.ctx.fillStyle = this.skinColor;
-        this.ctx.fillRect(cx - 8, baseY - 10, 2, 2);
-        this.ctx.fillRect(cx + 6, baseY - 10, 2, 2);
-        break;
-      }
-    }
-
-    // 4. Cabeça e Rosto
-    const headCX = cx;
-    const headCY = baseY - 19;
-
-    // Base arredondada da cabeça (pele)
-    this.ctx.fillStyle = this.skinColor;
-    this.ctx.beginPath();
-    this.ctx.arc(headCX, headCY, 5.5, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    switch (dir) {
-      case PlayerDirection.LEFT: {
-        // Cabelo de perfil cobrindo topo e lado traseiro (direito)
-        this.ctx.fillStyle = this.hairColor;
-        this.ctx.beginPath();
-        this.ctx.arc(headCX + 0.5, headCY - 0.5, 5.5, Math.PI * 1.3, Math.PI * 0.5);
-        this.ctx.fill();
-        this.ctx.fillRect(headCX - 1, headCY - 5.5, 6, 8.5);
-
-        // Olho esquerdo de perfil
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(headCX - 3.5, headCY + 0.5, 2, 2);
-        break;
-      }
-
-      case PlayerDirection.RIGHT: {
-        // Cabelo de perfil cobrindo topo e lado traseiro (esquerdo)
-        this.ctx.fillStyle = this.hairColor;
-        this.ctx.beginPath();
-        this.ctx.arc(headCX - 0.5, headCY - 0.5, 5.5, Math.PI * 0.5, Math.PI * 1.7);
-        this.ctx.fill();
-        this.ctx.fillRect(headCX - 5, headCY - 5.5, 6, 8.5);
-
-        // Olho direito de perfil
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(headCX + 1.5, headCY + 0.5, 2, 2);
-        break;
-      }
-
-      case PlayerDirection.UP: {
-        // Cabelo cobrindo a parte posterior da cabeça
-        this.ctx.fillStyle = this.hairColor;
-        this.ctx.beginPath();
-        this.ctx.arc(headCX, headCY - 0.5, 5.5, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        // Volume e mechas da nuca
-        this.ctx.fillStyle = this.hairShadowColor;
-        this.ctx.beginPath();
-        this.ctx.arc(headCX, headCY + 1.5, 4, Math.PI * 0.1, Math.PI * 0.9);
-        this.ctx.fill();
-        break;
-      }
-
-      case PlayerDirection.DOWN:
-      default: {
-        // Cabelo frontal: franja no topo e laterais
-        this.ctx.fillStyle = this.hairColor;
-        this.ctx.beginPath();
-        this.ctx.arc(headCX, headCY - 1, 5.5, Math.PI * 0.95, Math.PI * 2.05);
-        this.ctx.fill();
-        this.ctx.fillRect(headCX - 5.5, headCY - 2, 11, 3);
-        this.ctx.fillRect(headCX - 5.5, headCY - 1, 2, 3);
-        this.ctx.fillRect(headCX + 3.5, headCY - 1, 2, 3);
-
-        // Olhos frontais expressivos
-        this.ctx.fillStyle = this.eyeColor;
-        this.ctx.fillRect(headCX - 3, headCY + 0.5, 2, 2);
-        this.ctx.fillRect(headCX + 1, headCY + 0.5, 2, 2);
-        break;
-      }
+      this.playerRenderer.render(player, camera, viewport, this.width, this.height);
     }
   }
 

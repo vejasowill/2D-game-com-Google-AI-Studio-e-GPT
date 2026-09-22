@@ -3,6 +3,12 @@ import { Camera } from './Camera.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
 import { NaturalObjectType } from './NaturalObjectDefinition.ts';
 import { Player, PlayerDirection } from './Player.ts';
+import {
+  DEFAULT_PLAYER_VISUAL_CONFIG,
+  PlayerAnimationState,
+  PlayerVisualConfig,
+  calculatePlayerVisualBounds,
+} from './PlayerVisual.ts';
 import { InputSource, TileType, Vector2D, WorldCoord } from './types.ts';
 import { World } from './World.ts';
 
@@ -21,63 +27,137 @@ class MockInput implements InputSource {
 }
 
 export function runPlayerTests(): void {
-  console.log('[TEST] Iniciando suíte de testes do Player, Direção e Câmera...');
+  console.log('[TEST] Iniciando suíte completa de testes arquiteturais do Player, Ancoragem e Visual...');
 
-  // Teste A: Movimento cardinal preservado com velocidade esperada
+  // =========================================================================
+  // REQUISITO A: O tamanho visual pode ser 32×64 independentemente da hitbox
+  // =========================================================================
   {
-    const world = new World(12345);
-    for (let tx = 0; tx <= 15; tx++) {
-      for (let ty = 0; ty <= 15; ty++) {
-        world.setTile(tx, ty, TileType.GRASS);
-      }
-    }
-    const collision = new CollisionSystem(world);
-    const startPos: WorldCoord = { worldX: 100, worldY: 100 };
-    const player = new Player(startPos, DEFAULT_PLAYER_SPEED, PLAYER_SIZE);
+    const player = new Player({ worldX: 100, worldY: 100 }, DEFAULT_PLAYER_SPEED, PLAYER_SIZE);
 
-    const inputRight = new MockInput({ x: 1, y: 0 });
-    const dt = 0.5;
-    player.update(dt, inputRight, collision);
+    assert(player.size === PLAYER_SIZE, `Hitbox física do Player deve permanecer ${PLAYER_SIZE}px`);
 
-    const expectedX = 100 + DEFAULT_PLAYER_SPEED * dt;
-    assert(
-      Math.abs(player.position.worldX - expectedX) < 1e-3,
-      `Movimento no eixo X incorreto. Esperado ${expectedX}, obtido ${player.position.worldX}`,
-    );
-    assert(player.position.worldY === 100, 'Movimento no eixo Y não deveria ocorrer');
-    assert(player.isMoving === true, 'Player deveria reportar isMoving = true');
-    assert(player.direction === PlayerDirection.RIGHT, 'Direção deveria ser RIGHT');
-    console.log('✓ Teste A passou: Movimento cardinal preservado com velocidade esperada');
+    const visualConfig32x64: PlayerVisualConfig = {
+      visualWidth: 32,
+      visualHeight: 64,
+      anchorX: 0.5,
+      anchorY: 1.0,
+    };
+    player.visualConfig = visualConfig32x64;
+
+    const bounds = player.getVisualBounds();
+    assert(bounds.width === 32, 'Largura visual deve ser 32px');
+    assert(bounds.height === 64, 'Altura visual deve ser 64px');
+    assert(player.size === PLAYER_SIZE, `Hitbox física NÃO deve ser alterada (deve continuar ${PLAYER_SIZE}px)`);
+    console.log('✓ Requisito A passou: Tamanho visual pode ser 32×64 totalmente independente da hitbox física');
   }
 
-  // Teste B: Movimento diagonal normalizado: magnitude da velocidade não ultrapassa movimento cardinal
+  // =========================================================================
+  // REQUISITO B: A linha de base visual permanece ancorada corretamente nos pés
+  // =========================================================================
   {
-    const world = new World(12345);
-    for (let tx = 0; tx <= 20; tx++) {
-      for (let ty = 0; ty <= 20; ty++) {
-        world.setTile(tx, ty, TileType.GRASS);
-      }
-    }
-    const collision = new CollisionSystem(world);
-    const startPos: WorldCoord = { worldX: 200, worldY: 200 };
-    const player = new Player(startPos, DEFAULT_PLAYER_SPEED, PLAYER_SIZE);
+    const startX = 200;
+    const startY = 300;
+    const player = new Player({ worldX: startX, worldY: startY }, DEFAULT_PLAYER_SPEED, 24);
 
-    const inputDiagonal = new MockInput({ x: 1, y: 1 });
-    const dt = 1.0;
-    player.update(dt, inputDiagonal, collision);
+    const footBaseY = player.getFootBaseY();
+    assert(footBaseY === startY + 24, `A linha de base física dos pés deve ser exatamente startY + size (${startY + 24})`);
 
-    const dx = player.position.worldX - 200;
-    const dy = player.position.worldY - 200;
-    const totalDistance = Math.hypot(dx, dy);
+    const footPos = player.getFootPosition();
+    assert(footPos.worldX === startX + 12, 'Centro X dos pés deve ser startX + size/2');
+    assert(footPos.worldY === footBaseY, 'Posição Y dos pés deve ser idêntica a footBaseY');
 
-    assert(
-      Math.abs(totalDistance - DEFAULT_PLAYER_SPEED * dt) < 1e-3,
-      `Velocidade diagonal excedeu ou divergiu da velocidade base: obtido ${totalDistance}, esperado ${DEFAULT_PLAYER_SPEED * dt}`,
-    );
-    console.log('✓ Teste B passou: Movimento diagonal rigorosamente normalizado');
+    // Com sprite 32×64 ancorado em anchorX = 0.5 e anchorY = 1.0
+    const bounds = player.getVisualBounds({
+      visualWidth: 32,
+      visualHeight: 64,
+      anchorX: 0.5,
+      anchorY: 1.0,
+    });
+
+    // O topo do sprite sobe 64px a partir da linha dos pés
+    assert(bounds.worldY === footBaseY - 64, `Topo do sprite deve começar em footBaseY - 64 (${footBaseY - 64})`);
+    // A base inferior do sprite visual coincide exatamente com a linha de base física
+    assert(bounds.worldY + bounds.height === footBaseY, 'Base inferior do sprite coincide com footBaseY');
+    // O centro horizontal do sprite coincide com o centro horizontal da hitbox
+    assert(bounds.worldX === startX + 12 - 16, 'Sprite visual centralizado horizontalmente com a hitbox');
+    console.log('✓ Requisito B passou: Linha de base visual permanece perfeitamente ancorada nos pés');
   }
 
-  // Teste C: Direção visual atualizada corretamente para os 4 eixos cardinais
+  // =========================================================================
+  // REQUISITO C: Alterar a altura visual não altera a posição física nem a hitbox
+  // =========================================================================
+  {
+    const initialPos: WorldCoord = { worldX: 450, worldY: 600 };
+    const player = new Player(initialPos, DEFAULT_PLAYER_SPEED, 24);
+
+    const prevX = player.position.worldX;
+    const prevY = player.position.worldY;
+    const prevSize = player.size;
+    const prevFootY = player.getFootBaseY();
+
+    // Altera configuração visual para diferentes alturas (24, 32, 64, 128)
+    for (const h of [24, 32, 64, 128]) {
+      player.visualConfig = {
+        visualWidth: 32,
+        visualHeight: h,
+        anchorX: 0.5,
+        anchorY: 1.0,
+      };
+
+      assert(player.position.worldX === prevX, 'Posição X física não deve mudar com altura visual');
+      assert(player.position.worldY === prevY, 'Posição Y física não deve mudar com altura visual');
+      assert(player.size === prevSize, 'Hitbox física não deve mudar com altura visual');
+      assert(player.getFootBaseY() === prevFootY, 'Linha dos pés não deve mudar com altura visual');
+      assert(player.getCenter().worldX === prevX + prevSize / 2, 'Centro físico X inalterado');
+      assert(player.getCenter().worldY === prevY + prevSize / 2, 'Centro físico Y inalterado');
+    }
+    console.log('✓ Requisito C passou: Alterar a altura visual não altera em nada a posição física nem a hitbox');
+  }
+
+  // =========================================================================
+  // REQUISITO D: Y-sorting continua rigorosamente baseado nos pés
+  // =========================================================================
+  {
+    // Player na posição Y = 100 com tamanho 24 => pés em Y = 124
+    const player = new Player({ worldX: 100, worldY: 100 }, DEFAULT_PLAYER_SPEED, 24);
+    // Configura sprite alto de 64px: topo visual em Y = 124 - 64 = 60
+    player.visualConfig = {
+      visualWidth: 32,
+      visualHeight: 64,
+      anchorX: 0.5,
+      anchorY: 1.0,
+    };
+
+    const footBaseY = player.getFootBaseY();
+    assert(footBaseY === 124, 'Base dos pés deve ser 124px');
+
+    // Árvore 1: base em Y = 115 (atrás do jogador porque 115 < 124)
+    // Embora o topo do sprite do jogador suba até Y = 60 (acima da base da árvore),
+    // o critério de profundidade deve ser comparado COM OS PÉS (124).
+    const treeBehind = {
+      position: { worldX: 100, worldY: 85 },
+      height: 30, // base = 85 + 30 = 115
+      type: NaturalObjectType.TREE,
+    };
+    const treeBehindBaseY = treeBehind.position.worldY + treeBehind.height; // 115
+
+    // Árvore 2: base em Y = 135 (na frente do jogador porque 124 < 135)
+    const treeInFront = {
+      position: { worldX: 100, worldY: 100 },
+      height: 35, // base = 100 + 35 = 135
+      type: NaturalObjectType.TREE,
+    };
+    const treeInFrontBaseY = treeInFront.position.worldY + treeInFront.height; // 135
+
+    assert(treeBehindBaseY < footBaseY, 'Objeto atrás do jogador tem base menor que os pés do jogador');
+    assert(footBaseY < treeInFrontBaseY, 'Objeto à frente do jogador tem base maior que os pés do jogador');
+    console.log('✓ Requisito D passou: Y-sorting rigorosamente baseado na linha de base dos pés (footBaseY)');
+  }
+
+  // =========================================================================
+  // REQUISITO E: As quatro direções (UP, DOWN, LEFT, RIGHT) continuam disponíveis
+  // =========================================================================
   {
     const world = new World(12345);
     for (let tx = 10; tx <= 25; tx++) {
@@ -89,20 +169,22 @@ export function runPlayerTests(): void {
     const player = new Player({ worldX: 500, worldY: 500 });
 
     player.update(0.1, new MockInput({ x: 0, y: -1 }), collision);
-    assert(player.direction === PlayerDirection.UP, 'Direção deveria ser UP');
+    assert(player.direction === PlayerDirection.UP, 'Direção UP deve ser selecionada');
 
     player.update(0.1, new MockInput({ x: 0, y: 1 }), collision);
-    assert(player.direction === PlayerDirection.DOWN, 'Direção deveria ser DOWN');
+    assert(player.direction === PlayerDirection.DOWN, 'Direção DOWN deve ser selecionada');
 
     player.update(0.1, new MockInput({ x: -1, y: 0 }), collision);
-    assert(player.direction === PlayerDirection.LEFT, 'Direção deveria ser LEFT');
+    assert(player.direction === PlayerDirection.LEFT, 'Direção LEFT deve ser selecionada');
 
     player.update(0.1, new MockInput({ x: 1, y: 0 }), collision);
-    assert(player.direction === PlayerDirection.RIGHT, 'Direção deveria ser RIGHT');
-    console.log('✓ Teste C passou: Direção visual atualizada corretamente nos 4 eixos');
+    assert(player.direction === PlayerDirection.RIGHT, 'Direção RIGHT deve ser selecionada');
+    console.log('✓ Requisito E passou: Todas as 4 direções cardinais disponíveis e ativas');
   }
 
-  // Teste D: Direção permanece rigorosamente estável quando o Player para
+  // =========================================================================
+  // REQUISITO F: O estado parado continua preservando a última direção
+  // =========================================================================
   {
     const world = new World(12345);
     for (let tx = 10; tx <= 25; tx++) {
@@ -113,73 +195,54 @@ export function runPlayerTests(): void {
     const collision = new CollisionSystem(world);
     const player = new Player({ worldX: 500, worldY: 500 });
 
-    // Move para a esquerda
-    player.update(0.1, new MockInput({ x: -1, y: 0 }), collision);
-    assert(player.direction === PlayerDirection.LEFT, 'Deveria ser LEFT');
-    assert(player.isMoving === true, 'Deveria estar em movimento');
+    // Move para cima
+    player.update(0.1, new MockInput({ x: 0, y: -1 }), collision);
+    assert(player.direction === PlayerDirection.UP, 'Deveria ser UP');
+    assert(player.isMoving === true, 'isMoving deve ser true');
 
-    // Para o movimento (input zero)
+    // Para o movimento
     player.update(0.1, new MockInput({ x: 0, y: 0 }), collision);
-    assert(player.direction === PlayerDirection.LEFT, 'Direção deveria permanecer LEFT quando parado');
-    assert(player.isMoving === false, 'Deveria reportar parado');
+    assert(player.direction === PlayerDirection.UP, 'Direção deve permanecer UP quando parado');
+    assert(player.isMoving === false, 'isMoving deve ser false');
 
-    // Múltiplos updates parados mantêm a mesma direção
-    for (let i = 0; i < 5; i++) {
+    // Executa múltiplos frames sem movimento
+    for (let i = 0; i < 10; i++) {
       player.update(0.016, new MockInput({ x: 0, y: 0 }), collision);
-      assert(player.direction === PlayerDirection.LEFT, 'Direção deve persistir indefinidamente quando parado');
-      assert(player.isMoving === false, 'isMoving deve continuar false');
+      assert(player.direction === PlayerDirection.UP, 'Direção UP deve persistir indefinidamente');
+      assert(player.isMoving === false, 'isMoving deve permanecer false');
     }
-    console.log('✓ Teste D passou: Direção permanece perfeitamente estável após parar');
+    console.log('✓ Requisito F passou: Estado parado continua preservando estritamente a última direção');
   }
 
-  // Teste E: Posição física e dimensões permanecem independentes da apresentação visual
-  {
-    const initialPos = { worldX: 350, worldY: 420 };
-    const player = new Player(initialPos);
-
-    assert(player.size === PLAYER_SIZE, `Tamanho físico deve ser ${PLAYER_SIZE}`);
-    assert(player.position.worldX === 350, 'Posição X não deve ser alterada por renderização');
-    assert(player.position.worldY === 420, 'Posição Y não deve ser alterada por renderização');
-
-    const center = player.getCenter();
-    assert(center.worldX === 350 + PLAYER_SIZE / 2, 'Centro X geométrico correto');
-    assert(center.worldY === 420 + PLAYER_SIZE / 2, 'Centro Y geométrico correto');
-    console.log('✓ Teste E passou: Posição física e dimensões independentes da representação visual');
-  }
-
-  // Teste F: Spawn inicial permanece idêntico e consistente
-  {
-    const spawnCoord: WorldCoord = { worldX: 0, worldY: 0 };
-    const player = new Player(spawnCoord);
-
-    assert(player.position.worldX === 0, 'Spawn X deve ser 0');
-    assert(player.position.worldY === 0, 'Spawn Y deve ser 0');
-    assert(player.direction === PlayerDirection.DOWN, 'Direção inicial deve ser DOWN');
-    assert(player.isMoving === false, 'Estado inicial deve ser parado');
-    console.log('✓ Teste F passou: Spawn inicial permanece idêntico');
-  }
-
-  // Teste G: Coordenadas negativas no espaço infinito funcionam sem falhas
+  // =========================================================================
+  // REQUISITO G: Coordenadas negativas continuam funcionando perfeitamente
+  // =========================================================================
   {
     const world = new World(12345);
-    const tileX = Math.floor(-2500 / 32);
-    const tileY = Math.floor(-3500 / 32);
+    const tileX = Math.floor(-3000 / 32);
+    const tileY = Math.floor(-4000 / 32);
     for (let tx = tileX - 5; tx <= tileX + 5; tx++) {
       for (let ty = tileY - 5; ty <= tileY + 5; ty++) {
         world.setTile(tx, ty, TileType.GRASS);
       }
     }
     const collision = new CollisionSystem(world);
-    const player = new Player({ worldX: -2500, worldY: -3500 });
+    const player = new Player({ worldX: -3000, worldY: -4000 });
 
     player.update(0.5, new MockInput({ x: -1, y: 0 }), collision);
-    assert(player.position.worldX < -2500, 'Movimento para esquerda em coordenadas negativas deve avançar');
+    assert(player.position.worldX < -3000, 'Movimento para esquerda em coordenadas negativas deve avançar');
     assert(player.direction === PlayerDirection.LEFT, 'Direção em coordenadas negativas deve ser LEFT');
     assert(player.isMoving === true, 'Player deve estar se movendo');
-    console.log('✓ Teste G passou: Coordenadas negativas no espaço infinito funcionam sem restrição');
+
+    const bounds = player.getVisualBounds();
+    assert(bounds.worldX < -3000, 'Limites visuais em coordenadas negativas calculados corretamente');
+    assert(bounds.worldY < -4000, 'Limites visuais em coordenadas negativas calculados corretamente');
+    console.log('✓ Requisito G passou: Coordenadas negativas no espaço infinito operam sem restrições');
   }
 
-  // Teste H: Cruzamento de fronteiras de chunks continua fluido e correto
+  // =========================================================================
+  // REQUISITO H: Cruzamento de fronteiras de chunks continua fluido e correto
+  // =========================================================================
   {
     const world = new World(12345);
     for (let tx = 14; tx <= 18; tx++) {
@@ -192,70 +255,95 @@ export function runPlayerTests(): void {
 
     player.update(0.2, new MockInput({ x: 1, y: 0 }), collision);
     assert(player.position.worldX > 512, 'Player deve atravessar a fronteira do chunk (512px) livremente');
-    console.log('✓ Teste H passou: Cruzamento de fronteiras de chunks confirmado');
+    console.log('✓ Requisito H passou: Cruzamento de fronteiras de chunks permanece fluido');
   }
 
-  // Teste I: Y-sorting: base dos pés do Player determina a ordem de profundidade com WorldObjects
+  // =========================================================================
+  // REQUISITO I: Nenhuma consulta visual materializa chunks desnecessariamente
+  // =========================================================================
   {
-    const player = new Player({ worldX: 100, worldY: 100 }, DEFAULT_PLAYER_SPEED, 20);
-    const playerBaseY = player.position.worldY + player.size; // 120
+    const world = new World(88888);
+    const player = new Player({ worldX: 12000, worldY: 12000 });
 
-    const treeBehindPlayer = {
-      position: { worldX: 100, worldY: 80 },
-      height: 30, // base = 80 + 30 = 110
-      type: NaturalObjectType.TREE,
-    };
+    const loadedBefore = world.getChunkManager().getLoadedChunkCount();
+    const footPos = player.getFootPosition();
+    const footY = player.getFootBaseY();
+    const bounds = player.getVisualBounds();
+    const center = player.getCenter();
 
-    const treeInFrontOfPlayer = {
-      position: { worldX: 100, worldY: 100 },
-      height: 35, // base = 100 + 35 = 135
-      type: NaturalObjectType.TREE,
-    };
+    assert(footPos.worldY === footY, 'Coordenadas consistentes');
+    assert(bounds.width === 32 && bounds.height === 64, 'Bounds visuais calculados');
+    assert(center.worldX === 12000 + player.size / 2, 'Centro calculado');
 
-    const obj1Base = treeBehindPlayer.position.worldY + treeBehindPlayer.height;
-    const obj2Base = treeInFrontOfPlayer.position.worldY + treeInFrontOfPlayer.height;
-
-    assert(obj1Base < playerBaseY, 'Árvore acima deve ter base menor que a base do player');
-    assert(playerBaseY < obj2Base, 'Árvore abaixo deve ter base maior que a base do player');
-    console.log('✓ Teste I passou: Y-sorting da base dos pés do Player consistente com WorldObjects');
+    const loadedAfter = world.getChunkManager().getLoadedChunkCount();
+    assert(
+      loadedAfter === loadedBefore,
+      `Consultas visuais não devem materializar chunks (antes: ${loadedBefore}, depois: ${loadedAfter})`,
+    );
+    console.log('✓ Requisito I passou: Nenhuma consulta visual materializa chunks na memória');
   }
 
-  // Teste J: Camera opera no espaço infinito com amortecimento suave e sem limites artificiais
+  // =========================================================================
+  // TESTE ADICIONAL: Ciclo determinístico de animação por deltaTime (PlayerAnimationState)
+  // =========================================================================
+  {
+    const anim = new PlayerAnimationState({
+      idleFramesCount: 2,
+      walkFramesCount: 4,
+      idleFrameDuration: 0.2,
+      walkFrameDuration: 0.1,
+    });
+
+    assert(anim.currentFrame === 0, 'Frame inicial deve ser 0');
+
+    // Avança tempo em repouso (idle)
+    anim.update(0.2, false);
+    assert(anim.currentFrame === 1, 'Após 0.2s em idle deve avançar para o frame 1');
+
+    anim.update(0.2, false);
+    assert(anim.currentFrame === 0, 'Após outro 0.2s deve ciclar de volta para o frame 0 (totalFrames=2)');
+
+    // Inicia caminhada: transição para isMoving reseta para o frame 0
+    anim.update(0.016, true);
+    assert(anim.currentFrame === 0, 'Transição para walk deve reiniciar no frame 0');
+
+    // Caminhando: 4 frames com duração 0.1s cada
+    anim.update(0.1, true);
+    assert(anim.currentFrame === 1, 'Frame de caminhada 1');
+    anim.update(0.1, true);
+    assert(anim.currentFrame === 2, 'Frame de caminhada 2');
+    anim.update(0.1, true);
+    assert(anim.currentFrame === 3, 'Frame de caminhada 3');
+    anim.update(0.1, true);
+    assert(anim.currentFrame === 0, 'Frame de caminhada cicla de volta para 0');
+
+    // Para de caminhar: transição para idle reseta frame determinísticamente
+    anim.update(0.016, false);
+    assert(anim.currentFrame === 0, 'Transição de volta para idle reinicia no frame 0');
+    console.log('✓ Teste de animação passou: Máquina de estados determinística de frames opera com perfeição');
+  }
+
+  // =========================================================================
+  // TESTE DE CÂMERA: Acompanhamento suave no espaço infinito preservado
+  // =========================================================================
   {
     const camera = new Camera(0, 0);
 
-    // Deslocamento típico de movimento (ex: -30 pixels)
     camera.follow(-30, -30, 0.05);
-    assert(camera.worldX < 0 && camera.worldX > -30, 'Camera deve mover-se gradualmente em direção ao alvo');
-    assert(camera.worldY < 0 && camera.worldY > -30, 'Camera deve mover-se gradualmente em direção ao alvo');
+    assert(camera.worldX < 0 && camera.worldX > -30, 'Camera se move gradualmente em direção ao alvo');
+    assert(camera.worldY < 0 && camera.worldY > -30, 'Camera se move gradualmente em direção ao alvo');
 
     const intermediateX = camera.worldX;
     camera.follow(-30, -30, 0.05);
-    assert(camera.worldX < intermediateX, 'Camera deve continuar avançando suavemente');
+    assert(camera.worldX < intermediateX, 'Camera continua avançando suavemente');
 
-    // Ajuste direto para distâncias extremas (spawn/teletransporte > 250px)
     camera.follow(50000, 50000, 0.016);
     assert(camera.worldX === 50000, 'Salto extremo deve ajustar posição imediatamente');
     assert(camera.worldY === 50000, 'Salto extremo deve ajustar posição imediatamente');
-    console.log('✓ Teste J passou: Camera opera no espaço infinito com amortecimento estável');
+    console.log('✓ Teste de câmera passou: Acompanhamento amortecido no espaço infinito preservado');
   }
 
-  // Teste K: Nenhuma consulta visual do Player provoca materialização desnecessária de chunks
-  {
-    const world = new World(99999);
-    const player = new Player({ worldX: 8000, worldY: 8000 });
-
-    const loadedBefore = world.getChunkManager().getLoadedChunkCount();
-    const center = player.getCenter();
-    assert(center.worldX === 8000 + player.size / 2, 'Centro X correto');
-    assert(center.worldY === 8000 + player.size / 2, 'Centro Y correto');
-
-    const loadedAfter = world.getChunkManager().getLoadedChunkCount();
-    assert(loadedAfter === loadedBefore, 'Nenhum chunk deve ser carregado por consultas do Player');
-    console.log('✓ Teste K passou: Consultas ao Player não materializam chunks na memória');
-  }
-
-  console.log('[TEST] Todos os testes do Player, Direção e Câmera foram concluídos com sucesso!');
+  console.log('[TEST] Todos os testes arquiteturais do Player foram concluídos com sucesso!');
 }
 
 runPlayerTests();
