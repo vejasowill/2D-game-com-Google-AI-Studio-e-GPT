@@ -94,9 +94,9 @@ export class Game {
     // 3. Se o deslocamento do Player cruzou uma fronteira de chunk, preparar os novos chunks imediatamente
     this.streamingSystem.update(this.player.position);
 
-    // 4. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo
+    // 4. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
     const playerCenter = this.player.getCenter();
-    this.camera.setPosition(playerCenter.worldX, playerCenter.worldY);
+    this.camera.follow(playerCenter.worldX, playerCenter.worldY, deltaTime);
   }
 
   private render(): void {

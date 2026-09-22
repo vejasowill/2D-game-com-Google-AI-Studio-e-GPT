@@ -132,13 +132,15 @@ export class CollisionSystem {
     let dx = direction.x;
     let dy = direction.y;
 
-    // Normalização para movimento diagonal uniforme
-    if (dx !== 0 && dy !== 0) {
-      const length = Math.hypot(dx, dy);
-      if (length > 0) {
-        dx /= length;
-        dy /= length;
-      }
+    // Normalização estrita para garantir que a magnitude do vetor de movimento nunca exceda 1.0.
+    // Assegura velocidade uniforme e idêntica tanto no movimento cardinal quanto no diagonal.
+    const mag = Math.hypot(dx, dy);
+    if (mag > 1) {
+      dx /= mag;
+      dy /= mag;
+    } else if (dx !== 0 && dy !== 0 && mag > 0) {
+      dx /= mag;
+      dy /= mag;
     }
 
     const deltaX = dx * player.speed * deltaTime;
