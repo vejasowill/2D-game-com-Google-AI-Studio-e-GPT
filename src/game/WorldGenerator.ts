@@ -2,6 +2,7 @@ import { Biome } from './Biome.ts';
 import { BiomeResolver } from './BiomeResolver.ts';
 import { CHUNK_SIZE, DEFAULT_WORLD_SEED } from './constants.ts';
 import { Chunk } from './Chunk.ts';
+import { NaturalObjectGenerator } from './NaturalObjectGenerator.ts';
 import { ChunkCoord, EnvironmentalData, TileType } from './types.ts';
 
 /**
@@ -44,6 +45,9 @@ export class WorldGenerator {
   private readonly seedHumidity: number;
   private readonly seedHumidityMeso: number;
 
+  // Gerador determinístico de objetos naturais
+  private readonly naturalObjectGenerator: NaturalObjectGenerator;
+
   // Escalas hierárquicas para interpolação contínua (Macroescala + Mesoescala)
   // Macroescala de elevação (80 tiles = 2560px = 5 chunks): oceanos amplos e grandes massas continentais/cordilheiras
   private static readonly ELEVATION_MACRO_GRID_SIZE = 80;
@@ -69,6 +73,15 @@ export class WorldGenerator {
     this.seedTemperatureMeso = (this.seed ^ 0x5c8e2b71) | 0;
     this.seedHumidity = (this.seed ^ 0x1b56c4e9) | 0;
     this.seedHumidityMeso = (this.seed ^ 0x7d3a9f14) | 0;
+
+    this.naturalObjectGenerator = new NaturalObjectGenerator(this);
+  }
+
+  /**
+   * Retorna o gerador determinístico de objetos naturais.
+   */
+  public getNaturalObjectGenerator(): NaturalObjectGenerator {
+    return this.naturalObjectGenerator;
   }
 
   /**
@@ -200,6 +213,10 @@ export class WorldGenerator {
         chunk.setTile(localX, localY, tileType);
       }
     }
+
+    // Materializar deterministicamente os objetos naturais pertencentes a este chunk
+    const naturalObjects = this.naturalObjectGenerator.generateForChunk(chunkCoord);
+    chunk.setNaturalObjects(naturalObjects);
 
     return chunk;
   }

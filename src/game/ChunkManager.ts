@@ -4,6 +4,14 @@ import { ChunkCoord, ChunkTileCoord, Tile, TileType } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
 
 /**
+ * Interface para observadores do ciclo de vida dos chunks (carregamento e descarregamento).
+ */
+export interface ChunkLifecycleListener {
+  onChunkLoaded?: (chunk: Chunk) => void;
+  onChunkUnloaded?: (chunk: Chunk) => void;
+}
+
+/**
  * Gerenciador de Chunks.
  *
  * Responsável por:
@@ -12,14 +20,20 @@ import { WorldGenerator } from './WorldGenerator.ts';
  * - Fornecer a conversão matemática centralizada entre coordenadas globais de tile e coordenadas de chunk/locais;
  * - Solicitar geração sob demanda ao WorldGenerator quando um chunk ainda não existir na memória;
  * - Obter e modificar tiles no espaço de coordenadas globais;
+ * - Notificar observadores sobre carregamento e descarregamento de chunks;
  * - Suportar nativamente coordenadas positivas e negativas para futura expansão procedural.
  */
 export class ChunkManager {
   private readonly chunks: Map<string, Chunk> = new Map();
   private readonly worldGenerator: WorldGenerator;
+  private lifecycleListener: ChunkLifecycleListener | null = null;
 
   constructor(worldGenerator: WorldGenerator = new WorldGenerator()) {
     this.worldGenerator = worldGenerator;
+  }
+
+  public setLifecycleListener(listener: ChunkLifecycleListener | null): void {
+    this.lifecycleListener = listener;
   }
 
   public getWorldGenerator(): WorldGenerator {
@@ -90,6 +104,7 @@ export class ChunkManager {
     if (!chunk) {
       chunk = this.worldGenerator.generateChunk({ chunkX, chunkY });
       this.chunks.set(key, chunk);
+      this.lifecycleListener?.onChunkLoaded?.(chunk);
     }
     return chunk;
   }
@@ -98,7 +113,12 @@ export class ChunkManager {
    * Adiciona um chunk já instanciado ao gerenciador.
    */
   public addChunk(chunk: Chunk): void {
-    this.chunks.set(this.getChunkKey(chunk.coord.chunkX, chunk.coord.chunkY), chunk);
+    const key = this.getChunkKey(chunk.coord.chunkX, chunk.coord.chunkY);
+    const existed = this.chunks.has(key);
+    this.chunks.set(key, chunk);
+    if (!existed) {
+      this.lifecycleListener?.onChunkLoaded?.(chunk);
+    }
   }
 
   /**
@@ -110,9 +130,16 @@ export class ChunkManager {
 
   /**
    * Remove um chunk da memória.
+   * Notifica os observadores de ciclo de vida antes da remoção.
    */
   public removeChunk(chunkX: number, chunkY: number): boolean {
-    return this.chunks.delete(this.getChunkKey(chunkX, chunkY));
+    const key = this.getChunkKey(chunkX, chunkY);
+    const chunk = this.chunks.get(key);
+    if (chunk) {
+      this.lifecycleListener?.onChunkUnloaded?.(chunk);
+      return this.chunks.delete(key);
+    }
+    return false;
   }
 
   /**
@@ -179,8 +206,14 @@ export class ChunkManager {
 
   /**
    * Limpa todos os chunks carregados.
+   * Notifica descarregamento para todos os chunks ativos antes de limpar o armazenamento.
    */
   public clear(): void {
+    if (this.lifecycleListener?.onChunkUnloaded) {
+      for (const chunk of this.chunks.values()) {
+        this.lifecycleListener.onChunkUnloaded(chunk);
+      }
+    }
     this.chunks.clear();
   }
 }

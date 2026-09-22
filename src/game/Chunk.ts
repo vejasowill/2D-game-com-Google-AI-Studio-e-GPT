@@ -1,16 +1,19 @@
 import { CHUNK_SIZE } from './constants.ts';
 import { ChunkCoord, Tile, TileType } from './types.ts';
+import { WorldObject } from './WorldObject.ts';
 
 /**
  * Representa uma unidade de armazenamento espacial do mundo (Chunk).
  * É uma região contígua e fixa de CHUNK_SIZE × CHUNK_SIZE tiles.
  *
- * Responsável estritamente por armazenar o estado local de seus tiles.
+ * Responsável estritamente por armazenar o estado local de seus tiles
+ * e a coleção de objetos naturais pertencentes à sua área espacial.
  * Desacoplado de Camera, Renderer, Player, Input e GameLoop.
  */
 export class Chunk {
   public readonly coord: ChunkCoord;
   private readonly tiles: Tile[];
+  private naturalObjects: WorldObject[] = [];
 
   constructor(
     chunkX: number,
@@ -68,6 +71,20 @@ export class Chunk {
    */
   public getTileCount(): number {
     return this.tiles.length;
+  }
+
+  /**
+   * Retorna os objetos naturais procedurais pertencentes a este Chunk.
+   */
+  public getNaturalObjects(): readonly WorldObject[] {
+    return this.naturalObjects;
+  }
+
+  /**
+   * Define os objetos naturais procedurais pertencentes a este Chunk.
+   */
+  public setNaturalObjects(objects: WorldObject[]): void {
+    this.naturalObjects = [...objects];
   }
 
   private getLocalIndex(localX: number, localY: number): number {

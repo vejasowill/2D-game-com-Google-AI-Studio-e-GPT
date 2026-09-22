@@ -1,7 +1,10 @@
 import { ChunkManager } from './ChunkManager.ts';
+import { Chunk } from './Chunk.ts';
 import { Biome } from './Biome.ts';
 import { BiomeVisualRegistry, TerrainVisualDefinition } from './BiomeVisualRegistry.ts';
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
+import { NaturalObject } from './NaturalObjectDefinition.ts';
+import { NaturalObjectGenerator } from './NaturalObjectGenerator.ts';
 import { TileRegistry } from './TileRegistry.ts';
 import { EnvironmentalData, Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
@@ -17,6 +20,21 @@ export class World {
     this.worldGenerator = new WorldGenerator(seed);
     this.chunkManager = new ChunkManager(this.worldGenerator);
     this.objectManager = new WorldObjectManager();
+
+    // Sincronizar o ciclo de vida dos chunks com o WorldObjectManager:
+    // Chunks carregados registram seus objetos naturais; chunks descarregados removem seus objetos.
+    this.chunkManager.setLifecycleListener({
+      onChunkLoaded: (chunk: Chunk) => {
+        for (const obj of chunk.getNaturalObjects()) {
+          this.objectManager.addObject(obj);
+        }
+      },
+      onChunkUnloaded: (chunk: Chunk) => {
+        for (const obj of chunk.getNaturalObjects()) {
+          this.objectManager.removeObject(obj.id);
+        }
+      },
+    });
   }
 
   public getSeed(): number {
@@ -63,6 +81,21 @@ export class World {
    */
   public getObjectManager(): WorldObjectManager {
     return this.objectManager;
+  }
+
+  /**
+   * Retorna o gerador determinístico de objetos naturais associado ao World.
+   */
+  public getNaturalObjectGenerator(): NaturalObjectGenerator {
+    return this.worldGenerator.getNaturalObjectGenerator();
+  }
+
+  /**
+   * Consulta um objeto natural determinístico em uma coordenada global de tile.
+   * Função pura: NUNCA materializa ou aloca chunks no ChunkManager.
+   */
+  public getNaturalObjectAt(tileX: number, tileY: number): NaturalObject | null {
+    return this.worldGenerator.getNaturalObjectGenerator().getNaturalObjectAt(tileX, tileY);
   }
 
   /**

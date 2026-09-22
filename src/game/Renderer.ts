@@ -2,6 +2,7 @@ import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { Player } from './Player.ts';
 import { World } from './World.ts';
+import { WorldObject } from './WorldObject.ts';
 import { ViewportSize } from './types.ts';
 
 export class Renderer {
@@ -120,16 +121,60 @@ export class Renderer {
       }
     }
 
-    // 3. Renderizar o Player através da projeção da câmera
+    // 3. Renderizar WorldObjects e Player com ordenação por profundidade (Z-Sorting / Y-Sorting)
+    const margin = 64;
+    const minX = topLeftWorld.worldX - margin;
+    const minY = topLeftWorld.worldY - margin;
+    const areaWidth = (bottomRightWorld.worldX - topLeftWorld.worldX) + margin * 2;
+    const areaHeight = (bottomRightWorld.worldY - topLeftWorld.worldY) + margin * 2;
+    const visibleObjects = world.getObjectManager().getObjectsInArea(minX, minY, areaWidth, areaHeight);
+    // Ordenar objetos pelo limite inferior (linha de base no mundo)
+    visibleObjects.sort((a, b) => (a.position.worldY + a.height) - (b.position.worldY + b.height));
+
+    const playerBaseY = player.position.worldY + player.size;
+    let playerRendered = false;
+
+    for (const obj of visibleObjects) {
+      const objBaseY = obj.position.worldY + obj.height;
+      if (!playerRendered && playerBaseY <= objBaseY) {
+        this.renderPlayer(player, camera, viewport);
+        playerRendered = true;
+      }
+      this.renderWorldObject(obj, camera, viewport);
+    }
+
+    if (!playerRendered) {
+      this.renderPlayer(player, camera, viewport);
+    }
+  }
+
+  /**
+   * Renderiza o jogador com frustum culling.
+   */
+  private renderPlayer(player: Player, camera: Camera, viewport: ViewportSize): void {
     const playerScreenCoord = camera.worldToScreen(player.position, viewport);
 
-    // Frustum culling para o Player
     if (
       playerScreenCoord.screenX + player.size >= 0 &&
       playerScreenCoord.screenX <= this.width &&
       playerScreenCoord.screenY + player.size >= 0 &&
       playerScreenCoord.screenY <= this.height
     ) {
+      // Sombra sutil sob o jogador
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      this.ctx.beginPath();
+      this.ctx.ellipse(
+        playerScreenCoord.screenX + player.size / 2,
+        playerScreenCoord.screenY + player.size - 1,
+        player.size / 2 + 1,
+        player.size / 4,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      this.ctx.fill();
+
+      // Corpo do jogador
       this.ctx.fillStyle = this.playerColor;
       this.ctx.fillRect(
         playerScreenCoord.screenX,
@@ -146,6 +191,178 @@ export class Renderer {
         player.size - 1,
         player.size - 1,
       );
+    }
+  }
+
+  /**
+   * Renderiza um WorldObject com formas geométricas simples e limpas por tipo.
+   */
+  private renderWorldObject(obj: WorldObject, camera: Camera, viewport: ViewportSize): void {
+    const screenCoord = camera.worldToScreen(obj.position, viewport);
+
+    // Frustum culling
+    if (
+      screenCoord.screenX + obj.width < 0 ||
+      screenCoord.screenX > this.width ||
+      screenCoord.screenY + obj.height < 0 ||
+      screenCoord.screenY > this.height
+    ) {
+      return;
+    }
+
+    const { screenX, screenY } = screenCoord;
+    const { width, height } = obj;
+
+    switch (obj.type) {
+      case 'tree': {
+        // Sombra sob a copa
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(screenX + width / 2, screenY + height - 2, width / 2 - 2, 4, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Tronco marrom
+        const trunkWidth = 8;
+        const trunkHeight = 12;
+        const trunkX = screenX + (width - trunkWidth) / 2;
+        const trunkY = screenY + height - trunkHeight;
+        this.ctx.fillStyle = '#6b4226';
+        this.ctx.fillRect(trunkX, trunkY, trunkWidth, trunkHeight);
+        this.ctx.strokeStyle = '#4a2c11';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(trunkX + 0.5, trunkY + 0.5, trunkWidth - 1, trunkHeight - 1);
+
+        // Copa geométrica (duas camadas arredondadas)
+        const crownRadiusX = width / 2;
+        const crownRadiusY = (height - trunkHeight) / 2;
+        const crownCenterX = screenX + width / 2;
+        const crownCenterY = screenY + crownRadiusY;
+
+        this.ctx.fillStyle = '#2d6a4f';
+        this.ctx.beginPath();
+        this.ctx.ellipse(crownCenterX, crownCenterY + 2, crownRadiusX, crownRadiusY, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Camada superior da copa (destaque de volume)
+        this.ctx.fillStyle = '#40916c';
+        this.ctx.beginPath();
+        this.ctx.ellipse(crownCenterX, crownCenterY - 2, crownRadiusX - 3, crownRadiusY - 4, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Contorno da copa
+        this.ctx.strokeStyle = '#1b4332';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.ellipse(crownCenterX, crownCenterY + 2, crownRadiusX, crownRadiusY, 0, 0, Math.PI * 2);
+        this.ctx.stroke();
+        break;
+      }
+
+      case 'cactus': {
+        // Sombra na base
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(screenX + width / 2, screenY + height - 1, width / 2, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Haste principal
+        const stemWidth = 6;
+        const stemHeight = height - 2;
+        const stemX = screenX + (width - stemWidth) / 2;
+        const stemY = screenY + 2;
+
+        this.ctx.fillStyle = '#2d6a4f';
+        this.ctx.fillRect(stemX, stemY, stemWidth, stemHeight);
+
+        // Braço esquerdo do cacto
+        this.ctx.fillRect(screenX, screenY + 8, 4, 4);
+        this.ctx.fillRect(screenX, screenY + 4, 4, 5);
+
+        // Braço direito do cacto
+        this.ctx.fillRect(screenX + width - 4, screenY + 12, 4, 4);
+        this.ctx.fillRect(screenX + width - 4, screenY + 8, 4, 5);
+
+        this.ctx.strokeStyle = '#1b4332';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(stemX + 0.5, stemY + 0.5, stemWidth - 1, stemHeight - 1);
+        break;
+      }
+
+      case 'rock': {
+        // Sombra
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(screenX + width / 2, screenY + height - 1, width / 2, 4, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Corpo da rocha (forma angular multifacetada)
+        this.ctx.fillStyle = '#6c757d';
+        this.ctx.beginPath();
+        this.ctx.moveTo(screenX + 4, screenY + height - 2);
+        this.ctx.lineTo(screenX + 1, screenY + 8);
+        this.ctx.lineTo(screenX + 7, screenY + 2);
+        this.ctx.lineTo(screenX + width - 5, screenY + 1);
+        this.ctx.lineTo(screenX + width - 1, screenY + 7);
+        this.ctx.lineTo(screenX + width - 3, screenY + height - 2);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Destaque de luz superior
+        this.ctx.fillStyle = '#adb5bd';
+        this.ctx.beginPath();
+        this.ctx.moveTo(screenX + 7, screenY + 2);
+        this.ctx.lineTo(screenX + width - 5, screenY + 1);
+        this.ctx.lineTo(screenX + width - 8, screenY + 7);
+        this.ctx.lineTo(screenX + 5, screenY + 7);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Contorno
+        this.ctx.strokeStyle = '#495057';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(screenX + 4, screenY + height - 2);
+        this.ctx.lineTo(screenX + 1, screenY + 8);
+        this.ctx.lineTo(screenX + 7, screenY + 2);
+        this.ctx.lineTo(screenX + width - 5, screenY + 1);
+        this.ctx.lineTo(screenX + width - 1, screenY + 7);
+        this.ctx.lineTo(screenX + width - 3, screenY + height - 2);
+        this.ctx.closePath();
+        this.ctx.stroke();
+        break;
+      }
+
+      case 'wildflower': {
+        const cx = screenX + width / 2;
+        const cy = screenY + height / 2;
+
+        // Caule verde fino
+        this.ctx.fillStyle = '#38b000';
+        this.ctx.fillRect(cx - 1, cy, 2, height / 2);
+
+        // Pétalas (círculo delicado colorido)
+        this.ctx.fillStyle = '#f72585';
+        this.ctx.beginPath();
+        this.ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Miolo amarelo
+        this.ctx.fillStyle = '#ffd166';
+        this.ctx.beginPath();
+        this.ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+        this.ctx.fill();
+        break;
+      }
+
+      default: {
+        // Fallback genérico para qualquer outro tipo de WorldObject
+        this.ctx.fillStyle = '#8b5cf6';
+        this.ctx.fillRect(screenX, screenY, width, height);
+        this.ctx.strokeStyle = '#6d28d9';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(screenX + 0.5, screenY + 0.5, width - 1, height - 1);
+        break;
+      }
     }
   }
 
