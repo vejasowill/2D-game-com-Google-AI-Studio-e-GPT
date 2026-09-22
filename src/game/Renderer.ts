@@ -169,6 +169,9 @@ export class Renderer {
       interactionSystem.renderFeedback(this.ctx, viewport);
       interactionSystem.renderDebug(this.ctx, camera, viewport, player);
     }
+
+    // 5. Renderizar HUD técnico mínimo do inventário (barra de slots discretos no rodapé)
+    this.renderInventoryBar(player);
   }
 
   /**
@@ -394,6 +397,63 @@ export class Renderer {
         break;
       }
 
+      case 'item_drop': {
+        const itemId = (obj.state as { itemId?: string } | undefined)?.itemId ?? 'wood';
+        const quantity = (obj.state as { quantity?: number } | undefined)?.quantity ?? 1;
+
+        // Sombra suave sob o item
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(screenX + width / 2, screenY + height - 1, width / 2 - 1, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Renderização pixel art técnica do item
+        if (itemId === 'wood') {
+          // Tronco de madeira
+          this.ctx.fillStyle = '#854d0e';
+          this.ctx.fillRect(screenX + 2, screenY + 4, width - 4, height - 7);
+          this.ctx.fillStyle = '#a16207';
+          this.ctx.fillRect(screenX + 3, screenY + 5, width - 6, 2);
+          this.ctx.strokeStyle = '#583101';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(screenX + 2.5, screenY + 4.5, width - 5, height - 8);
+        } else if (itemId === 'stone') {
+          // Fragmento rochoso
+          this.ctx.fillStyle = '#64748b';
+          this.ctx.fillRect(screenX + 3, screenY + 4, width - 6, height - 7);
+          this.ctx.fillStyle = '#94a3b8';
+          this.ctx.fillRect(screenX + 4, screenY + 5, width - 8, 2);
+          this.ctx.strokeStyle = '#334155';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(screenX + 3.5, screenY + 4.5, width - 7, height - 8);
+        } else if (itemId === 'flower') {
+          // Flor silvestre
+          this.ctx.fillStyle = '#f43f5e';
+          this.ctx.fillRect(screenX + 4, screenY + 3, width - 8, height - 7);
+          this.ctx.fillStyle = '#fbbf24';
+          this.ctx.fillRect(screenX + 6, screenY + 5, 4, 3);
+        } else {
+          // Fallback genérico para outros itens
+          this.ctx.fillStyle = '#d97706';
+          this.ctx.fillRect(screenX + 3, screenY + 4, width - 6, height - 7);
+          this.ctx.strokeStyle = '#92400e';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(screenX + 3.5, screenY + 4.5, width - 7, height - 8);
+        }
+
+        // Indicador de quantidade no canto se for maior que 1
+        if (quantity > 1) {
+          this.ctx.fillStyle = '#000000';
+          this.ctx.font = 'bold 9px monospace';
+          this.ctx.textAlign = 'right';
+          this.ctx.textBaseline = 'bottom';
+          this.ctx.fillText(`${quantity}`, screenX + width + 1, screenY + height + 1);
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.fillText(`${quantity}`, screenX + width, screenY + height);
+        }
+        break;
+      }
+
       default: {
         // Fallback genérico para qualquer outro tipo de WorldObject
         this.ctx.fillStyle = '#8b5cf6';
@@ -412,5 +472,71 @@ export class Renderer {
 
   public getHeight(): number {
     return this.height;
+  }
+
+  /**
+   * Renderiza a representação técnica mínima e limpa dos slots de inventário na barra inferior.
+   * Não afeta o núcleo de física, movimentação ou entidades.
+   */
+  private renderInventoryBar(player: Player): void {
+    const inventory = player.inventory;
+    const slotCount = Math.min(8, inventory.getSlotCount());
+    const slotSize = 28;
+    const gap = 4;
+    const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
+    const startX = Math.round((this.width - totalWidth) / 2);
+    const startY = this.height - slotSize - 10;
+
+    // Fundo discreto da barra de atalho
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+    this.ctx.fillRect(startX - 6, startY - 4, totalWidth + 12, slotSize + 8);
+    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(startX - 5.5, startY - 3.5, totalWidth + 11, slotSize + 7);
+
+    for (let i = 0; i < slotCount; i++) {
+      const slotX = startX + i * (slotSize + gap);
+      const slotY = startY;
+      const stack = inventory.getSlot(i);
+
+      // Fundo do slot
+      this.ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      this.ctx.fillRect(slotX, slotY, slotSize, slotSize);
+      this.ctx.strokeStyle = 'rgba(71, 85, 105, 0.8)';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(slotX + 0.5, slotY + 0.5, slotSize - 1, slotSize - 1);
+
+      if (stack) {
+        // Miniatura pixel art representativa por itemId
+        if (stack.itemId === 'wood') {
+          this.ctx.fillStyle = '#854d0e';
+          this.ctx.fillRect(slotX + 6, slotY + 9, 16, 10);
+          this.ctx.fillStyle = '#a16207';
+          this.ctx.fillRect(slotX + 8, slotY + 11, 12, 2);
+        } else if (stack.itemId === 'stone') {
+          this.ctx.fillStyle = '#64748b';
+          this.ctx.fillRect(slotX + 7, slotY + 7, 14, 14);
+          this.ctx.fillStyle = '#94a3b8';
+          this.ctx.fillRect(slotX + 9, slotY + 9, 10, 3);
+        } else if (stack.itemId === 'flower') {
+          this.ctx.fillStyle = '#f43f5e';
+          this.ctx.fillRect(slotX + 8, slotY + 7, 12, 12);
+          this.ctx.fillStyle = '#fbbf24';
+          this.ctx.fillRect(slotX + 11, slotY + 10, 6, 6);
+        } else {
+          this.ctx.fillStyle = '#d97706';
+          this.ctx.fillRect(slotX + 7, slotY + 7, 14, 14);
+        }
+
+        // Quantidade numérica no canto
+        this.ctx.fillStyle = '#000000';
+        this.ctx.font = 'bold 9px monospace';
+        this.ctx.textAlign = 'right';
+        this.ctx.textBaseline = 'bottom';
+        this.ctx.fillText(`${stack.quantity}`, slotX + slotSize - 1, slotY + slotSize);
+        this.ctx.fillStyle = '#f8fafc';
+        this.ctx.fillText(`${stack.quantity}`, slotX + slotSize - 2, slotY + slotSize - 1);
+      }
+    }
   }
 }

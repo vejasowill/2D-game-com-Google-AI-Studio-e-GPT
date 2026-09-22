@@ -1,5 +1,6 @@
 import { DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
+import { DEFAULT_INVENTORY_SLOT_COUNT, Inventory } from './Inventory.ts';
 import {
   DEFAULT_PLAYER_VISUAL_CONFIG,
   PlayerAnimationState,
@@ -29,14 +30,19 @@ export class Player {
   /** Gerenciador de estado e ciclo de frames de animação */
   public readonly animationState: PlayerAnimationState = new PlayerAnimationState();
 
+  /** Inventário de itens do Player (estado lógico desacoplado de física e mundo) */
+  public readonly inventory: Inventory;
+
   constructor(
     initialPosition: WorldCoord,
     speed: number = DEFAULT_PLAYER_SPEED,
     size: number = PLAYER_SIZE,
+    inventorySlotCount: number = DEFAULT_INVENTORY_SLOT_COUNT,
   ) {
     this.position = { ...initialPosition };
     this.speed = speed;
     this.size = size;
+    this.inventory = new Inventory(inventorySlotCount);
   }
 
   /**

@@ -51,7 +51,9 @@ export class ItemRegistry {
       return;
     }
     for (const item of DEFAULT_TECHNICAL_ITEMS) {
-      this.register(item);
+      if (!this.definitions.has(item.id)) {
+        this.register(item);
+      }
     }
     this.isInitialized = true;
   }
@@ -127,5 +129,12 @@ export class ItemRegistry {
   public static resetForTesting(): void {
     this.definitions.clear();
     this.isInitialized = false;
+  }
+
+  /**
+   * Alias de conveniência para resetForTesting.
+   */
+  public static clear(): void {
+    this.resetForTesting();
   }
 }

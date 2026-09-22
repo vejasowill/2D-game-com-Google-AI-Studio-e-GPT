@@ -7,6 +7,7 @@ import {
   NaturalObject,
   NaturalObjectType,
 } from './NaturalObjectDefinition.ts';
+import { NaturalTreeObject } from './NaturalTreeObject.ts';
 import { TileRegistry } from './TileRegistry.ts';
 import { ChunkCoord, TileType } from './types.ts';
 import { deterministicHash2D, normalizeHash, WorldGenerator } from './WorldGenerator.ts';
@@ -250,6 +251,19 @@ export class NaturalObjectGenerator {
 
     // 8. ID estável e único: natural:<type>:<tileX>:<tileY>
     const id = `natural:${def.type}:${globalTileX}:${globalTileY}`;
+
+    if (def.type === NaturalObjectType.TREE) {
+      return new NaturalTreeObject(
+        id,
+        { worldX, worldY },
+        def.width,
+        def.height,
+        biome,
+        globalTileX,
+        globalTileY,
+        variant,
+      );
+    }
 
     return {
       id,

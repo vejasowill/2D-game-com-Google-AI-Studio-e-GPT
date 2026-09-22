@@ -22,7 +22,7 @@ export class World {
     this.objectManager = new WorldObjectManager();
 
     // Sincronizar o ciclo de vida dos chunks com o WorldObjectManager:
-    // Chunks carregados registram seus objetos naturais; chunks descarregados removem seus objetos.
+    // Chunks carregados registram seus objetos naturais; chunks descarregados removem seus objetos (naturais e drops).
     this.chunkManager.setLifecycleListener({
       onChunkLoaded: (chunk: Chunk) => {
         for (const obj of chunk.getNaturalObjects()) {
@@ -30,8 +30,16 @@ export class World {
         }
       },
       onChunkUnloaded: (chunk: Chunk) => {
+        // Remove objetos naturais do chunk
         for (const obj of chunk.getNaturalObjects()) {
           this.objectManager.removeObject(obj.id);
+        }
+        // Remove ItemDrops contidos na célula espacial do chunk descarregado
+        const chunkObjects = this.objectManager.getObjectsInChunk(chunk.coord.chunkX, chunk.coord.chunkY);
+        for (const obj of chunkObjects) {
+          if (obj.type === 'item_drop') {
+            this.objectManager.removeObject(obj.id);
+          }
         }
       },
     });
