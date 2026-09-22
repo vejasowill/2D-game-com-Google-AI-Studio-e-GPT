@@ -99,6 +99,14 @@ export class World {
   }
 
   /**
+   * Consulta o valor de densidade ecológica [0, 1) em uma coordenada global de tile.
+   * Função pura: NUNCA materializa ou aloca chunks no ChunkManager.
+   */
+  public getEcologicalDensityAt(tileX: number, tileY: number): number {
+    return this.worldGenerator.getNaturalObjectGenerator().getDensityAt(tileX, tileY);
+  }
+
+  /**
    * Consulta um tile global em qualquer coordenada espacial inteira (positiva, negativa ou distante).
    * O ChunkManager carrega/gera o chunk sob demanda de forma determinística.
    */
