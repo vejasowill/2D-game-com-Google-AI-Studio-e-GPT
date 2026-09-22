@@ -5,10 +5,21 @@ export class Input implements InputSource {
   private justPressedKeys: Set<string> = new Set();
   private handleKeyDown: (event: KeyboardEvent) => void;
   private handleKeyUp: (event: KeyboardEvent) => void;
+  private handleWheel: (event: WheelEvent) => void;
 
   /** Mapeamento de ações abstratas para teclas físicas e lógicas */
   private actionBindings: Record<string, string[]> = {
     interact: ['KeyE', 'e', 'Space', ' ', 'Enter'],
+    next_slot: ['BracketRight', ']', 'KeyX'],
+    prev_slot: ['BracketLeft', '[', 'KeyZ'],
+    slot_1: ['Digit1', '1', 'Numpad1'],
+    slot_2: ['Digit2', '2', 'Numpad2'],
+    slot_3: ['Digit3', '3', 'Numpad3'],
+    slot_4: ['Digit4', '4', 'Numpad4'],
+    slot_5: ['Digit5', '5', 'Numpad5'],
+    slot_6: ['Digit6', '6', 'Numpad6'],
+    slot_7: ['Digit7', '7', 'Numpad7'],
+    slot_8: ['Digit8', '8', 'Numpad8'],
   };
 
   constructor() {
@@ -44,9 +55,23 @@ export class Input implements InputSource {
       this.activeKeys.delete(key);
     };
 
+    this.handleWheel = (event: WheelEvent) => {
+      // Normaliza o giro da roda do mouse para seleção cíclica de slots na Hotbar
+      if (event.deltaY > 0) {
+        this.justPressedKeys.add('next_slot');
+        this.justPressedKeys.add('BracketRight');
+        this.justPressedKeys.add(']');
+      } else if (event.deltaY < 0) {
+        this.justPressedKeys.add('prev_slot');
+        this.justPressedKeys.add('BracketLeft');
+        this.justPressedKeys.add('[');
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', this.handleKeyDown);
       window.addEventListener('keyup', this.handleKeyUp);
+      window.addEventListener('wheel', this.handleWheel, { passive: true });
     }
   }
 
@@ -149,6 +174,7 @@ export class Input implements InputSource {
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this.handleKeyDown);
       window.removeEventListener('keyup', this.handleKeyUp);
+      window.removeEventListener('wheel', this.handleWheel);
     }
     this.activeKeys.clear();
     this.justPressedKeys.clear();

@@ -1,6 +1,9 @@
-import { DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
+import { DEFAULT_HOTBAR_SLOT_COUNT, DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
+import { Equipment, EquippedItem } from './Equipment.ts';
+import { Hotbar } from './Hotbar.ts';
 import { DEFAULT_INVENTORY_SLOT_COUNT, Inventory } from './Inventory.ts';
+import { ItemStack } from './ItemStack.ts';
 import {
   DEFAULT_PLAYER_VISUAL_CONFIG,
   PlayerAnimationState,
@@ -33,16 +36,67 @@ export class Player {
   /** Inventário de itens do Player (estado lógico desacoplado de física e mundo) */
   public readonly inventory: Inventory;
 
+  /** Camada de seleção rápida de slots da Hotbar */
+  public readonly hotbar: Hotbar;
+
+  /** Subsistema e estado do item equipado derivado dinamicamente do inventário */
+  public readonly equipment: Equipment;
+
   constructor(
     initialPosition: WorldCoord,
     speed: number = DEFAULT_PLAYER_SPEED,
     size: number = PLAYER_SIZE,
     inventorySlotCount: number = DEFAULT_INVENTORY_SLOT_COUNT,
+    hotbarSlotCount: number = DEFAULT_HOTBAR_SLOT_COUNT,
   ) {
     this.position = { ...initialPosition };
     this.speed = speed;
     this.size = size;
     this.inventory = new Inventory(inventorySlotCount);
+    this.hotbar = new Hotbar(Math.min(inventorySlotCount, hotbarSlotCount));
+    this.equipment = new Equipment(this.inventory, this.hotbar);
+  }
+
+  /**
+   * Retorna a representação descritiva do item atualmente equipado, ou null se o slot estiver vazio.
+   */
+  public getEquippedItem(): EquippedItem | null {
+    return this.equipment.getEquippedItem();
+  }
+
+  /**
+   * Retorna a referência direta ao ItemStack contido no slot ativo do inventário, ou null se vazio.
+   */
+  public getEquippedStack(): ItemStack | null {
+    return this.equipment.getEquippedStack();
+  }
+
+  /**
+   * Processa a seleção e navegação rápida de slots da Hotbar a partir dos inputs fornecidos.
+   * Não afeta física, colisão, animação ou posição do Player.
+   */
+  public updateHotbar(input: InputSource): void {
+    if (!input.isActionJustPressed) {
+      return;
+    }
+
+    if (input.isActionJustPressed('next_slot')) {
+      this.hotbar.nextSlot();
+      return;
+    }
+
+    if (input.isActionJustPressed('prev_slot')) {
+      this.hotbar.previousSlot();
+      return;
+    }
+
+    const slotCount = this.hotbar.getSlotCount();
+    for (let i = 0; i < slotCount; i++) {
+      if (input.isActionJustPressed(`slot_${i + 1}`)) {
+        this.hotbar.setSelectedSlot(i);
+        return;
+      }
+    }
   }
 
   /**
@@ -89,6 +143,9 @@ export class Player {
 
     // Avança a máquina de estados de animação determinística
     this.animationState.update(deltaTime, this.isMoving);
+
+    // Processa a seleção rápida de slots da Hotbar a partir dos inputs do frame
+    this.updateHotbar(input);
   }
 
   /**

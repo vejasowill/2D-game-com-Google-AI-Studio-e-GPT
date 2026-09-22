@@ -170,8 +170,8 @@ export class Renderer {
       interactionSystem.renderDebug(this.ctx, camera, viewport, player);
     }
 
-    // 5. Renderizar HUD técnico mínimo do inventário (barra de slots discretos no rodapé)
-    this.renderInventoryBar(player);
+    // 5. Renderizar HUD técnico mínimo da Hotbar (barra de slots discretos com destaque de seleção)
+    this.renderHotbar(player);
   }
 
   /**
@@ -475,68 +475,129 @@ export class Renderer {
   }
 
   /**
-   * Renderiza a representação técnica mínima e limpa dos slots de inventário na barra inferior.
+   * Renderiza a representação técnica mínima e limpa dos slots da Hotbar na barra inferior.
+   * Destaca claramente o slot ativo e exibe a quantidade e o item equipado.
    * Não afeta o núcleo de física, movimentação ou entidades.
    */
-  private renderInventoryBar(player: Player): void {
+  private renderHotbar(player: Player): void {
     const inventory = player.inventory;
-    const slotCount = Math.min(8, inventory.getSlotCount());
-    const slotSize = 28;
+    const hotbar = player.hotbar;
+    const slotCount = hotbar.getSlotCount();
+    const selectedSlot = hotbar.getSelectedSlotIndex();
+
+    const slotSize = 30;
     const gap = 4;
     const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
     const startX = Math.round((this.width - totalWidth) / 2);
-    const startY = this.height - slotSize - 10;
+    const startY = this.height - slotSize - 12;
 
-    // Fundo discreto da barra de atalho
-    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+    // Fundo discreto da moldura da Hotbar
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
     this.ctx.fillRect(startX - 6, startY - 4, totalWidth + 12, slotSize + 8);
-    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(startX - 5.5, startY - 3.5, totalWidth + 11, slotSize + 7);
 
     for (let i = 0; i < slotCount; i++) {
       const slotX = startX + i * (slotSize + gap);
       const slotY = startY;
+      const isSelected = i === selectedSlot;
       const stack = inventory.getSlot(i);
 
       // Fundo do slot
-      this.ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      if (isSelected) {
+        this.ctx.fillStyle = 'rgba(30, 58, 138, 0.95)'; // Azul destacado para seleção ativa
+      } else {
+        this.ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      }
       this.ctx.fillRect(slotX, slotY, slotSize, slotSize);
-      this.ctx.strokeStyle = 'rgba(71, 85, 105, 0.8)';
-      this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(slotX + 0.5, slotY + 0.5, slotSize - 1, slotSize - 1);
+
+      // Borda do slot (destacada se selecionado)
+      if (isSelected) {
+        this.ctx.strokeStyle = '#fbbf24'; // Dourado brilhante para o slot equipado
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(slotX + 1, slotY + 1, slotSize - 2, slotSize - 2);
+
+        // Marcador indicador sutil no topo do slot selecionado
+        this.ctx.fillStyle = '#fbbf24';
+        this.ctx.fillRect(slotX + slotSize / 2 - 2, startY - 3, 4, 2);
+      } else {
+        this.ctx.strokeStyle = 'rgba(71, 85, 105, 0.8)';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(slotX + 0.5, slotY + 0.5, slotSize - 1, slotSize - 1);
+      }
+
+      // Indicador numérico do atalho (1 a N) no canto superior esquerdo
+      this.ctx.fillStyle = isSelected ? '#fbbf24' : 'rgba(148, 163, 184, 0.8)';
+      this.ctx.font = 'bold 8px monospace';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'top';
+      if (typeof this.ctx.fillText === 'function') {
+        this.ctx.fillText(`${i + 1}`, slotX + 2, slotY + 2);
+      }
 
       if (stack) {
-        // Miniatura pixel art representativa por itemId
+        // Miniatura técnica representativa por itemId
         if (stack.itemId === 'wood') {
           this.ctx.fillStyle = '#854d0e';
-          this.ctx.fillRect(slotX + 6, slotY + 9, 16, 10);
+          this.ctx.fillRect(slotX + 7, slotY + 10, 16, 10);
           this.ctx.fillStyle = '#a16207';
-          this.ctx.fillRect(slotX + 8, slotY + 11, 12, 2);
+          this.ctx.fillRect(slotX + 9, slotY + 12, 12, 2);
         } else if (stack.itemId === 'stone') {
           this.ctx.fillStyle = '#64748b';
-          this.ctx.fillRect(slotX + 7, slotY + 7, 14, 14);
+          this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
           this.ctx.fillStyle = '#94a3b8';
-          this.ctx.fillRect(slotX + 9, slotY + 9, 10, 3);
+          this.ctx.fillRect(slotX + 10, slotY + 10, 10, 3);
         } else if (stack.itemId === 'flower') {
           this.ctx.fillStyle = '#f43f5e';
-          this.ctx.fillRect(slotX + 8, slotY + 7, 12, 12);
+          this.ctx.fillRect(slotX + 9, slotY + 8, 12, 12);
           this.ctx.fillStyle = '#fbbf24';
-          this.ctx.fillRect(slotX + 11, slotY + 10, 6, 6);
+          this.ctx.fillRect(slotX + 12, slotY + 11, 6, 6);
         } else {
           this.ctx.fillStyle = '#d97706';
-          this.ctx.fillRect(slotX + 7, slotY + 7, 14, 14);
+          this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
         }
 
-        // Quantidade numérica no canto
+        // Quantidade numérica no canto inferior direito
         this.ctx.fillStyle = '#000000';
         this.ctx.font = 'bold 9px monospace';
         this.ctx.textAlign = 'right';
         this.ctx.textBaseline = 'bottom';
-        this.ctx.fillText(`${stack.quantity}`, slotX + slotSize - 1, slotY + slotSize);
-        this.ctx.fillStyle = '#f8fafc';
-        this.ctx.fillText(`${stack.quantity}`, slotX + slotSize - 2, slotY + slotSize - 1);
+        if (typeof this.ctx.fillText === 'function') {
+          this.ctx.fillText(`${stack.quantity}`, slotX + slotSize, slotY + slotSize);
+          this.ctx.fillStyle = '#f8fafc';
+          this.ctx.fillText(`${stack.quantity}`, slotX + slotSize - 1, slotY + slotSize - 1);
+        }
       }
     }
+  }
+
+  /**
+   * Converte uma coordenada de clique/toque na tela para o índice do slot correspondente na Hotbar.
+   * Retorna o índice do slot (0 a slotCount - 1) ou null se fora dos limites.
+   */
+  public getHotbarSlotAt(screenX: number, screenY: number, player: Player): number | null {
+    const slotCount = player.hotbar.getSlotCount();
+    const slotSize = 30;
+    const gap = 4;
+    const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
+    const startX = Math.round((this.width - totalWidth) / 2);
+    const startY = this.height - slotSize - 12;
+
+    for (let i = 0; i < slotCount; i++) {
+      const slotX = startX + i * (slotSize + gap);
+      const slotY = startY;
+
+      if (
+        screenX >= slotX &&
+        screenX <= slotX + slotSize &&
+        screenY >= slotY &&
+        screenY <= slotY + slotSize
+      ) {
+        return i;
+      }
+    }
+
+    return null;
   }
 }

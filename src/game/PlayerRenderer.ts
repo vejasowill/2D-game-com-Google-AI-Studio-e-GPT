@@ -67,37 +67,134 @@ export class PlayerRenderer {
     // 1. Sombra elíptica no solo (ancorada estritamente na linha física dos pés)
     this.renderShadow(cx, baseY);
 
+    // Se a direção for UP (costas para a câmera), o item na mão é desenhado antes do corpo
+    const isFacingUp = player.direction === PlayerDirection.UP;
+    if (isFacingUp) {
+      this.renderEquippedItemInHand(player, cx, baseY);
+    }
+
+    let renderedBody = false;
+
     // 2. Se houver um spritesheet direto com imagem real carregada, desenha o frame
     if (this.spriteSheet && this.spriteSheet.imageSource) {
       this.renderCustomSpriteFrame(player, cx, baseY, visualBounds);
-      return;
-    }
-
-    // 3. Consulta o AssetManager pelo spritesheet registrado para o Player
-    const registeredSheet = AssetManager.getInstance().getSpriteSheet('player');
-    if (registeredSheet && registeredSheet.imageSource) {
-      const dirStr = this.directionToString(player.direction);
-      const animName = player.isMoving ? 'walk' : 'idle';
-      const frame = registeredSheet.getFrame(
-        animName,
-        dirStr,
-        player.animationState.currentFrame,
-      );
-
-      if (frame) {
-        this.spriteRenderer.renderSprite(
-          camera,
-          viewport,
-          visualBounds,
-          registeredSheet,
-          frame,
+      renderedBody = true;
+    } else {
+      // 3. Consulta o AssetManager pelo spritesheet registrado para o Player
+      const registeredSheet = AssetManager.getInstance().getSpriteSheet('player');
+      if (registeredSheet && registeredSheet.imageSource) {
+        const dirStr = this.directionToString(player.direction);
+        const animName = player.isMoving ? 'walk' : 'idle';
+        const frame = registeredSheet.getFrame(
+          animName,
+          dirStr,
+          player.animationState.currentFrame,
         );
-        return;
+
+        if (frame) {
+          this.spriteRenderer.renderSprite(
+            camera,
+            viewport,
+            visualBounds,
+            registeredSheet,
+            frame,
+          );
+          renderedBody = true;
+        }
       }
     }
 
     // 4. Fallback / Placeholder vetorial atual: preserva o visual procedural do aventureiro
-    this.renderProceduralCharacter(player, cx, baseY);
+    if (!renderedBody) {
+      this.renderProceduralCharacter(player, cx, baseY);
+    }
+
+    // Se a direção for DOWN, LEFT ou RIGHT, o item na mão é desenhado sobre o corpo/frente
+    if (!isFacingUp) {
+      this.renderEquippedItemInHand(player, cx, baseY);
+    }
+  }
+
+  /**
+   * PONTO DE EXTENSÃO PARA SPRITES E ANIMAÇÕES DEFINITIVAS DE ITEM NA MÃO:
+   *
+   * O desenvolvedor/artista poderá futuramente substituir esta representação técnica por:
+   * 1. Sprite do item na mão registrado no AssetManager (ex: ferramentas, tochas, sementes);
+   * 2. Spritesheets específicos por direção (UP, DOWN, LEFT, RIGHT);
+   * 3. Animações compostas (IDLE + item, WALK + item, USE_ITEM, ATTACK);
+   * 4. Rotação ou offsets de empunhadura calculados a partir de âncoras da mão do personagem.
+   *
+   * Esta representação técnica atual garante que qualquer item selecionado no inventário
+   * seja imediatamente visível na mão sem alterar física, hitbox, colisão ou Y-sorting.
+   */
+  private renderEquippedItemInHand(player: Player, cx: number, baseY: number): void {
+    const equipped = player.equipment.getEquippedItem();
+    if (!equipped) {
+      return;
+    }
+
+    const dir = player.direction;
+    let handX = cx;
+    let handY = baseY - 8;
+
+    switch (dir) {
+      case PlayerDirection.LEFT:
+        handX = cx - 9;
+        handY = baseY - 8;
+        break;
+      case PlayerDirection.RIGHT:
+        handX = cx + 7;
+        handY = baseY - 8;
+        break;
+      case PlayerDirection.UP:
+        handX = cx + 6;
+        handY = baseY - 13;
+        break;
+      case PlayerDirection.DOWN:
+      default:
+        handX = cx + 6;
+        handY = baseY - 8;
+        break;
+    }
+
+    // Fallback técnico limpo e proporcional para itens na mão
+    const itemId = equipped.itemId;
+    const itemSize = 8;
+    const drawX = Math.round(handX);
+    const drawY = Math.round(handY);
+
+    if (itemId === 'wood') {
+      // Pequeno tronco/tábua de madeira
+      this.ctx.fillStyle = '#854d0e';
+      this.ctx.fillRect(drawX - 4, drawY - 3, 8, 6);
+      this.ctx.fillStyle = '#a16207';
+      this.ctx.fillRect(drawX - 3, drawY - 2, 6, 2);
+      this.ctx.strokeStyle = '#451a03';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(drawX - 3.5, drawY - 2.5, 7, 5);
+    } else if (itemId === 'stone') {
+      // Pequena pedra angular
+      this.ctx.fillStyle = '#64748b';
+      this.ctx.fillRect(drawX - 3, drawY - 3, 6, 6);
+      this.ctx.fillStyle = '#94a3b8';
+      this.ctx.fillRect(drawX - 2, drawY - 2, 4, 2);
+      this.ctx.strokeStyle = '#334155';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(drawX - 2.5, drawY - 2.5, 5, 5);
+    } else if (itemId === 'flower') {
+      // Flor com pétalas coloridas
+      this.ctx.fillStyle = '#f43f5e';
+      this.ctx.fillRect(drawX - 3, drawY - 3, 6, 6);
+      this.ctx.fillStyle = '#fbbf24';
+      this.ctx.fillRect(drawX - 1, drawY - 1, 2, 2);
+    } else {
+      // Item genérico (ícone sutil)
+      this.ctx.fillStyle = '#f59e0b';
+      this.ctx.fillRect(drawX - itemSize / 2, drawY - itemSize / 2, itemSize, itemSize);
+      this.ctx.strokeStyle = '#78350f';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(drawX - itemSize / 2 + 0.5, drawY - itemSize / 2 + 0.5, itemSize - 1, itemSize - 1);
+    }
   }
 
   /**

@@ -13,3 +13,5 @@ export const DEBUG_INTERACTION = false; // Flag para visualização de debug da 
 
 export const DEFAULT_ITEM_DROP_TTL = 300; // Tempo de vida útil padrão de drops em segundos (5 minutos)
 
+export const DEFAULT_HOTBAR_SLOT_COUNT = 8; // Quantidade padrão de slots rápidos na Hotbar
+

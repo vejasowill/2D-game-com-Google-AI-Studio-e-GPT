@@ -21,10 +21,13 @@ export class Game {
   private interactionSystem: InteractionSystem;
   private renderer: Renderer;
   private loop: GameLoop;
+  private canvas: HTMLCanvasElement;
   private resizeObserver: ResizeObserver | null = null;
   private handleWindowResize: (() => void) | null = null;
+  private handlePointerDown: ((event: PointerEvent) => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
     // 1. Instanciar o World (dados dos tiles e autoridade de chunks)
     this.world = new World();
 
@@ -76,6 +79,7 @@ export class Game {
     });
 
     this.setupResize(canvas);
+    this.setupPointerInput(canvas);
   }
 
   public getInteractionSystem(): InteractionSystem {
@@ -102,6 +106,11 @@ export class Game {
     this.stop();
 
     this.input.destroy();
+
+    if (this.handlePointerDown) {
+      this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
+      this.handlePointerDown = null;
+    }
 
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
@@ -158,5 +167,22 @@ export class Game {
       });
       this.resizeObserver.observe(canvas.parentElement);
     }
+  }
+
+  private setupPointerInput(canvas: HTMLCanvasElement): void {
+    this.handlePointerDown = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const screenX = (event.clientX - rect.left) * (canvas.width / rect.width);
+      const screenY = (event.clientY - rect.top) * (canvas.height / rect.height);
+      const clickedSlot = this.renderer.getHotbarSlotAt(screenX, screenY, this.player);
+
+      if (clickedSlot !== null) {
+        this.player.hotbar.setSelectedSlot(clickedSlot);
+      }
+    };
+
+    canvas.addEventListener('pointerdown', this.handlePointerDown);
   }
 }
