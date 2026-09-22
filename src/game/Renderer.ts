@@ -166,6 +166,7 @@ export class Renderer {
     // 4. Renderizar feedback técnico de interação e debug se disponível
     if (interactionSystem) {
       interactionSystem.renderPrompt(this.ctx, camera, viewport);
+      interactionSystem.renderFeedback(this.ctx, viewport);
       interactionSystem.renderDebug(this.ctx, camera, viewport, player);
     }
   }
@@ -327,6 +328,47 @@ export class Renderer {
         this.ctx.beginPath();
         this.ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
         this.ctx.fill();
+        break;
+      }
+
+      case 'test_toggle': {
+        const isActive = (obj.state as { active?: boolean } | undefined)?.active === true;
+
+        // Sombra na base
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(screenX + width / 2, screenY + height - 1, width / 2, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        if (isActive) {
+          // Estado ON: Beacon brilhante esmeralda com núcleo luminoso
+          this.ctx.fillStyle = '#059669';
+          this.ctx.fillRect(screenX, screenY, width, height);
+
+          // Borda verde vívida
+          this.ctx.strokeStyle = '#10b981';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(screenX + 0.5, screenY + 0.5, width - 1, height - 1);
+
+          // Núcleo luminoso pulsante/aceso
+          this.ctx.fillStyle = '#6ee7b7';
+          this.ctx.fillRect(screenX + width / 2 - 4, screenY + height / 2 - 4, 8, 8);
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.fillRect(screenX + width / 2 - 2, screenY + height / 2 - 2, 4, 4);
+        } else {
+          // Estado OFF: Beacon inativo com cores de ardósia/apagado
+          this.ctx.fillStyle = '#334155';
+          this.ctx.fillRect(screenX, screenY, width, height);
+
+          // Borda escura discreta
+          this.ctx.strokeStyle = '#1e293b';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(screenX + 0.5, screenY + 0.5, width - 1, height - 1);
+
+          // Núcleo apagado
+          this.ctx.fillStyle = '#64748b';
+          this.ctx.fillRect(screenX + width / 2 - 3, screenY + height / 2 - 3, 6, 6);
+        }
         break;
       }
 

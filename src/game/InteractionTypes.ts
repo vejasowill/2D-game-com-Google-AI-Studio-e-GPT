@@ -41,6 +41,51 @@ export interface InteractionContext {
 }
 
 /**
+ * Tipos de mutação controlada que uma interação ou ação de gameplay pode solicitar ao mundo.
+ */
+export type WorldMutationType =
+  | 'create_object'
+  | 'remove_object'
+  | 'update_position'
+  | 'update_state';
+
+/** Mutação para criar/adicionar um novo WorldObject no mundo */
+export interface CreateObjectMutation {
+  readonly type: 'create_object';
+  readonly object: WorldObject;
+}
+
+/** Mutação para remover um WorldObject do mundo por seu ID estável */
+export interface RemoveObjectMutation {
+  readonly type: 'remove_object';
+  readonly objectId: string;
+}
+
+/** Mutação para mover um WorldObject mantendo seus índices espaciais consistentes */
+export interface UpdatePositionMutation {
+  readonly type: 'update_position';
+  readonly objectId: string;
+  readonly newPosition: WorldCoord;
+}
+
+/** Mutação para atualizar o estado de um WorldObject */
+export interface UpdateStateMutation {
+  readonly type: 'update_state';
+  readonly objectId: string;
+  readonly statePatch: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * União discriminada de todas as mutações possíveis no estado dos objetos do mundo.
+ * O executor aplica essas mutações através do WorldObjectManager preservando o particionamento espacial.
+ */
+export type WorldMutation =
+  | CreateObjectMutation
+  | RemoveObjectMutation
+  | UpdatePositionMutation
+  | UpdateStateMutation;
+
+/**
  * Estrutura extensível de resultado da execução de uma interação.
  * Nunca limitada a um simples booleano.
  */
@@ -59,6 +104,12 @@ export interface InteractionResult {
 
   /** Categoria ou código do resultado para branching futuro (ex: 'inspected', 'dialogue_started', etc.) */
   readonly code?: string;
+
+  /** Mutações no mundo que devem ser aplicadas como consequência desta interação */
+  readonly mutations?: readonly WorldMutation[];
+
+  /** Patch direto de estado para o próprio objeto alvo interagido (atalho conveniente) */
+  readonly statePatch?: Readonly<Record<string, unknown>>;
 
   /** Payload de dados arbitrários retornados pelo comportamento do objeto */
   readonly data?: Readonly<Record<string, unknown>>;

@@ -26,4 +26,10 @@ export interface WorldObject {
 
   /** Altura espacial da entidade (em pixels), para futuro culling, render e colisão */
   readonly height: number;
+
+  /**
+   * Estado mutável e arbitrário da entidade (ex: { active: boolean, opened: boolean, etc. }).
+   * Mantém o WorldObject genérico sem acoplamento a regras concretas de gameplay.
+   */
+  readonly state?: Readonly<Record<string, unknown>>;
 }

@@ -7,7 +7,7 @@ import { Input } from './Input.ts';
 import { InteractionSystem } from './InteractionSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
-import { TestInteractableObject } from './TestInteractableObject.ts';
+import { TestToggleObject } from './TestToggleObject.ts';
 import { World } from './World.ts';
 
 export class Game {
@@ -42,19 +42,18 @@ export class Game {
     // 5. Instanciar o sistema genérico de interação desacoplado
     this.interactionSystem = new InteractionSystem();
 
-    // Adicionar um objeto interativo técnico inicial próximo ao spawn para validação no preview
-    const demoInteractable = new TestInteractableObject(
-      'test_beacon_spawn',
+    // Adicionar um objeto interativo demonstrativo técnico e limpo (TestToggleObject) próximo ao spawn
+    const demoToggleBeacon = new TestToggleObject(
+      'demo_beacon',
       {
         worldX: initialPlayerPosition.worldX + 48,
         worldY: initialPlayerPosition.worldY,
       },
+      false, // Inicialmente OFF
       24,
       24,
-      'Inspecionar',
-      0,
     );
-    this.world.getObjectManager().addObject(demoInteractable);
+    this.world.getObjectManager().addObject(demoToggleBeacon);
 
     // 6. Instanciar a Camera centralizada no Player
     const playerCenter = this.player.getCenter();
@@ -125,7 +124,7 @@ export class Game {
     this.streamingSystem.update(this.player.position);
 
     // 4. Executar o sistema de interação (busca determinística e execução de ação discreta se acionada)
-    this.interactionSystem.update(this.player, this.world, this.input);
+    this.interactionSystem.update(this.player, this.world, this.input, deltaTime);
 
     // 5. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
     this.input.clearFrameState();

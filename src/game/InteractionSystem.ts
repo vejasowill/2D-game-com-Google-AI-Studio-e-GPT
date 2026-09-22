@@ -9,6 +9,7 @@ import {
   getObjectInteractionWorldBounds,
   isInteractable,
 } from './InteractionTypes.ts';
+import { WorldMutationHandler } from './WorldMutationHandler.ts';
 
 interface CandidateEvaluation {
   readonly obj: InteractiveWorldObject;
@@ -39,6 +40,12 @@ export class InteractionSystem {
 
   /** Último resultado de interação executado (para inspeção e testes) */
   private lastResult: InteractionResult | null = null;
+
+  /** Mensagem ativa de feedback transitório de interação */
+  private activeFeedbackMessage: string | null = null;
+
+  /** Tempo restante de exibição da mensagem de feedback em segundos */
+  private feedbackTimer: number = 0;
 
   /** Ouvinte opcional de eventos de interação */
   public onInteraction?: (result: InteractionResult, target: InteractiveWorldObject) => void;
@@ -342,7 +349,16 @@ export class InteractionSystem {
     player: Player,
     world: World,
     input: InputSource,
+    deltaTime: number = 0,
   ): InteractionResult | null {
+    // Atualizar temporizador de feedback transitório
+    if (this.feedbackTimer > 0) {
+      this.feedbackTimer = Math.max(0, this.feedbackTimer - deltaTime);
+      if (this.feedbackTimer === 0) {
+        this.activeFeedbackMessage = null;
+      }
+    }
+
     // 1. Atualizar o melhor alvo na mira
     this.currentTarget = this.findBestTarget(player, world);
 
@@ -352,20 +368,7 @@ export class InteractionSystem {
       : false;
 
     if (isInteractJustPressed && this.currentTarget) {
-      const context = {
-        player,
-        world,
-        object: this.currentTarget,
-      };
-
-      const result = this.currentTarget.interact(context);
-      this.lastResult = result;
-
-      if (this.onInteraction) {
-        this.onInteraction(result, this.currentTarget);
-      }
-
-      return result;
+      return this.executeInteraction(player, world, this.currentTarget);
     }
 
     return null;
@@ -373,6 +376,11 @@ export class InteractionSystem {
 
   /**
    * Executa diretamente a interação com o alvo atual ou um alvo especificado.
+   * Separação estrita de responsabilidades:
+   * 1. Valida canInteract();
+   * 2. Chama target.interact(context);
+   * 3. Aplica consequências no mundo via WorldMutationHandler;
+   * 4. Registra feedback de mensagem transitória.
    */
   public executeInteraction(
     player: Player,
@@ -390,23 +398,48 @@ export class InteractionSystem {
     };
 
     if (target.canInteract && !target.canInteract(context)) {
-      return {
+      const blockedResult: InteractionResult = {
         success: false,
         interactionId: target.interaction.id,
         actionLabel: target.interaction.label,
         message: 'Interação indisponível no momento.',
         code: 'blocked',
       };
+      this.lastResult = blockedResult;
+      return blockedResult;
     }
 
     const result = target.interact(context);
     this.lastResult = result;
+
+    // Aplicação desacoplada das consequências da interação no mundo
+    WorldMutationHandler.applyInteractionResult(world, target, result);
+
+    // Registrar feedback contextual se presente
+    if (result.message) {
+      this.showFeedback(result.message);
+    }
 
     if (this.onInteraction) {
       this.onInteraction(result, target);
     }
 
     return result;
+  }
+
+  /**
+   * Exibe uma mensagem transitória de feedback na tela por uma duração especificada.
+   */
+  public showFeedback(message: string, durationSeconds: number = 2.5): void {
+    this.activeFeedbackMessage = message;
+    this.feedbackTimer = durationSeconds;
+  }
+
+  /**
+   * Retorna a mensagem de feedback transitória ativa no momento, se houver.
+   */
+  public getActiveFeedbackMessage(): string | null {
+    return this.activeFeedbackMessage;
   }
 
   /**
@@ -524,6 +557,46 @@ export class InteractionSystem {
         Math.round(targetScreen.screenY) - 4,
       );
     }
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza feedback textual temporário na tela (ex: "Beacon: ON" ou "Beacon: OFF").
+   */
+  public renderFeedback(
+    ctx: CanvasRenderingContext2D,
+    viewport: ViewportSize,
+  ): void {
+    if (!this.activeFeedbackMessage || this.feedbackTimer <= 0) {
+      return;
+    }
+
+    ctx.save();
+    ctx.font = 'bold 12px monospace';
+    const text = this.activeFeedbackMessage;
+    const textWidth = ctx.measureText(text).width;
+    const paddingX = 14;
+    const boxHeight = 24;
+    const boxWidth = Math.round(textWidth + paddingX * 2);
+    const boxX = Math.round((viewport.width - boxWidth) / 2);
+    const boxY = 16;
+
+    // Fundo escuro sutil com opacidade proporcional ao tempo restante (fade out nos últimos 0.5s)
+    const alpha = Math.min(1, this.feedbackTimer / 0.5);
+    ctx.fillStyle = `rgba(15, 23, 42, ${0.9 * alpha})`;
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+    // Borda esmeralda
+    ctx.strokeStyle = `rgba(16, 185, 129, ${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxWidth - 1, boxHeight - 1);
+
+    // Texto de feedback
+    ctx.fillStyle = `rgba(110, 231, 183, ${alpha})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, Math.round(viewport.width / 2), boxY + boxHeight / 2);
 
     ctx.restore();
   }

@@ -149,6 +149,34 @@ export class WorldObjectManager {
   }
 
   /**
+   * Atualiza o estado interno de um WorldObject mesclando o novo patch com o estado prévio.
+   * Não afeta índices espaciais nem a posição do objeto.
+   * Retorna true se o objeto foi localizado e atualizado.
+   */
+  public updateObjectState(id: string, statePatch: Readonly<Record<string, unknown>>): boolean {
+    const object = this.objectsById.get(id);
+    if (!object) {
+      return false;
+    }
+
+    const previousState = object.state ?? {};
+    const newState: Readonly<Record<string, unknown>> = {
+      ...previousState,
+      ...statePatch,
+    };
+
+    (object as { state: Readonly<Record<string, unknown>> }).state = newState;
+    return true;
+  }
+
+  /**
+   * Recupera o estado de um WorldObject pelo ID.
+   */
+  public getObjectState(id: string): Readonly<Record<string, unknown>> | undefined {
+    return this.objectsById.get(id)?.state;
+  }
+
+  /**
    * Recupera um WorldObject pelo seu ID estável.
    */
   public getObjectById(id: string): WorldObject | null {
