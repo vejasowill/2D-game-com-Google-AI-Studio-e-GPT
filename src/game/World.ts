@@ -5,6 +5,8 @@ import { BiomeVisualRegistry, TerrainVisualDefinition } from './BiomeVisualRegis
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { NaturalObject } from './NaturalObjectDefinition.ts';
 import { NaturalObjectGenerator } from './NaturalObjectGenerator.ts';
+import { isTemporaryWorldObject } from './TemporaryWorldObject.ts';
+import { TemporaryObjectSystem } from './TemporaryObjectSystem.ts';
 import { TileRegistry } from './TileRegistry.ts';
 import { EnvironmentalData, Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
@@ -15,14 +17,30 @@ export class World {
   private readonly worldGenerator: WorldGenerator;
   private readonly chunkManager: ChunkManager;
   private readonly objectManager: WorldObjectManager;
+  private readonly temporaryObjectSystem: TemporaryObjectSystem;
+  private worldTime: number = 0;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
     this.worldGenerator = new WorldGenerator(seed);
     this.chunkManager = new ChunkManager(this.worldGenerator);
     this.objectManager = new WorldObjectManager();
+    this.temporaryObjectSystem = new TemporaryObjectSystem(this.worldTime);
 
-    // Sincronizar o ciclo de vida dos chunks com o WorldObjectManager:
-    // Chunks carregados registram seus objetos naturais; chunks descarregados removem seus objetos (naturais e drops).
+    // Integrar o ciclo de vida do WorldObjectManager com o TemporaryObjectSystem
+    this.objectManager.setListener({
+      onObjectAdded: (object: WorldObject) => {
+        if (isTemporaryWorldObject(object)) {
+          this.temporaryObjectSystem.register(object);
+        }
+      },
+      onObjectRemoved: (objectId: string) => {
+        this.temporaryObjectSystem.unregister(objectId);
+      },
+    });
+
+    // Sincronizar o ciclo de vida dos chunks do terreno com o WorldObjectManager:
+    // Apenas objetos procedurais naturais gerados pelo seed do terreno entram e saem na carga/descarga de chunks.
+    // Entidades dinâmicas (drops, baús, construções) permanecem no WorldObjectManager com autoridade independente.
     this.chunkManager.setLifecycleListener({
       onChunkLoaded: (chunk: Chunk) => {
         for (const obj of chunk.getNaturalObjects()) {
@@ -30,19 +48,47 @@ export class World {
         }
       },
       onChunkUnloaded: (chunk: Chunk) => {
-        // Remove objetos naturais do chunk
         for (const obj of chunk.getNaturalObjects()) {
           this.objectManager.removeObject(obj.id);
         }
-        // Remove ItemDrops contidos na célula espacial do chunk descarregado
-        const chunkObjects = this.objectManager.getObjectsInChunk(chunk.coord.chunkX, chunk.coord.chunkY);
-        for (const obj of chunkObjects) {
-          if (obj.type === 'item_drop') {
-            this.objectManager.removeObject(obj.id);
-          }
-        }
       },
     });
+  }
+
+  /**
+   * Atualiza a simulação do mundo com o deltaTime decorrido:
+   * 1. Avança o relógio monotônico de simulação do mundo;
+   * 2. Processa o sistema de expiração de objetos temporários via Min-Heap.
+   */
+  public update(deltaTime: number): void {
+    if (deltaTime > 0) {
+      this.worldTime += deltaTime;
+    }
+    this.temporaryObjectSystem.update(this, deltaTime);
+  }
+
+  /**
+   * Retorna o tempo de simulação acumulado no mundo em segundos.
+   */
+  public getTime(): number {
+    return this.worldTime;
+  }
+
+  /**
+   * Ajusta o tempo de simulação do mundo de forma atômica (recursos determinísticos e testes).
+   */
+  public setTime(time: number): void {
+    if (time >= 0) {
+      this.worldTime = time;
+      this.temporaryObjectSystem.setTime(time);
+    }
+  }
+
+  /**
+   * Retorna o subsistema dedicado de gerenciamento de objetos temporários.
+   */
+  public getTemporaryObjectSystem(): TemporaryObjectSystem {
+    return this.temporaryObjectSystem;
   }
 
   public getSeed(): number {

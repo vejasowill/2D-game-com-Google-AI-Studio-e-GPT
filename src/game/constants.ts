@@ -11,3 +11,5 @@ export const DEFAULT_PLAYER_SPEED = 160; // Pixels por segundo no espaço do mun
 export const DEFAULT_PLAYER_INTERACTION_RANGE = 32; // Alcance padrão de interação do jogador em pixels
 export const DEBUG_INTERACTION = false; // Flag para visualização de debug da área de interação
 
+export const DEFAULT_ITEM_DROP_TTL = 300; // Tempo de vida útil padrão de drops em segundos (5 minutos)
+

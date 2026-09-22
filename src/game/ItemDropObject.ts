@@ -1,3 +1,4 @@
+import { DEFAULT_ITEM_DROP_TTL } from './constants.ts';
 import { DEFAULT_MAX_STACK_SIZE } from './ItemDefinition.ts';
 import { ItemRegistry } from './ItemRegistry.ts';
 import { createItemStack } from './ItemStack.ts';
@@ -8,6 +9,7 @@ import {
   InteractiveWorldObject,
   WorldMutation,
 } from './InteractionTypes.ts';
+import { createObjectLifecycle, ObjectLifecycle, TemporaryWorldObject } from './TemporaryWorldObject.ts';
 import { WorldCoord } from './types.ts';
 import { WorldObject } from './WorldObject.ts';
 
@@ -20,20 +22,22 @@ export interface ItemDropState {
  * Entidade concreta que representa um item drop no mundo físico.
  *
  * Princípios arquiteturais:
- * 1. Implementa o contrato WorldObject e InteractiveWorldObject;
+ * 1. Implementa o contrato WorldObject, InteractiveWorldObject e TemporaryWorldObject;
  * 2. Possui posição contínua, dimensões e integração total ao WorldObjectManager;
- * 3. Seu estado armazena puramente { itemId, quantity };
+ * 3. Possui ciclo de vida declarativo (ObjectLifecycle) com TTL determinístico;
  * 4. Ao interagir com o Player, transfere a quantidade para o Inventory do Player de forma controlada;
- * 5. Remove-se ou atualiza seu estado por meio de WorldMutations;
- * 6. Desacoplado de spritesheets reais (fornece spriteAssetId referencial e aceita fallback).
+ * 5. Se coletado parcialmente, preserva estritamente o ciclo de vida e TTL original sem reiniciar;
+ * 6. Remove-se ou atualiza seu estado por meio de WorldMutations;
+ * 7. Desacoplado de spritesheets reais (fornece spriteAssetId referencial e aceita fallback).
  */
-export class ItemDropObject implements InteractiveWorldObject {
+export class ItemDropObject implements InteractiveWorldObject, TemporaryWorldObject {
   public readonly id: string;
   public readonly type: string = 'item_drop';
   public position: WorldCoord;
   public readonly width: number;
   public readonly height: number;
   public state: Readonly<Record<string, unknown>>;
+  public readonly lifecycle: ObjectLifecycle;
 
   public readonly interaction: InteractionDefinition = {
     id: 'collect',
@@ -49,6 +53,8 @@ export class ItemDropObject implements InteractiveWorldObject {
     quantity: number,
     width: number = 16,
     height: number = 16,
+    createdAt: number = 0,
+    ttl: number = DEFAULT_ITEM_DROP_TTL,
   ) {
     if (!itemId || typeof itemId !== 'string' || itemId.trim().length === 0) {
       throw new Error(`[ItemDropObject] itemId inválido: ${itemId}`);
@@ -65,6 +71,7 @@ export class ItemDropObject implements InteractiveWorldObject {
       itemId: itemId.trim(),
       quantity,
     });
+    this.lifecycle = createObjectLifecycle(createdAt, ttl);
   }
 
   public get itemId(): string {

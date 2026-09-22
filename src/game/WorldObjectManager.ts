@@ -2,6 +2,11 @@ import { CHUNK_SIZE, TILE_SIZE } from './constants.ts';
 import { ChunkCoord, WorldCoord } from './types.ts';
 import { WorldObject } from './WorldObject.ts';
 
+export interface WorldObjectManagerListener {
+  onObjectAdded?: (object: WorldObject) => void;
+  onObjectRemoved?: (objectId: string) => void;
+}
+
 /**
  * Gerenciador e armazenamento espacial dedicado para WorldObjects.
  *
@@ -22,8 +27,15 @@ export class WorldObjectManager {
    */
   private readonly chunkIndex: Map<string, Set<string>> = new Map();
 
+  /** Ouvinte desacoplado para notificações de ciclo de vida (adição e remoção de objetos) */
+  private listener: WorldObjectManagerListener | null = null;
+
   /** Tamanho de uma célula de chunk em pixels */
   private static readonly CHUNK_PIXEL_SIZE = CHUNK_SIZE * TILE_SIZE;
+
+  public setListener(listener: WorldObjectManagerListener | null): void {
+    this.listener = listener;
+  }
 
   /**
    * Converte uma coordenada contínua de mundo (em pixels) para a coordenada de chunk espacial correspondente.
@@ -66,6 +78,7 @@ export class WorldObjectManager {
       set.add(object.id);
     }
 
+    this.listener?.onObjectAdded?.(object);
     return true;
   }
 
@@ -214,6 +227,7 @@ export class WorldObjectManager {
     }
 
     this.objectsById.delete(id);
+    this.listener?.onObjectRemoved?.(id);
     return true;
   }
 

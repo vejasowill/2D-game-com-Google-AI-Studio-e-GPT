@@ -19,11 +19,11 @@ export class WorldMutationHandler {
 
     switch (mutation.type) {
       case 'create_object': {
-        objectManager.addObject(mutation.object);
-        return true;
+        return objectManager.addObject(mutation.object);
       }
 
       case 'remove_object': {
+        world.getTemporaryObjectSystem().unregister(mutation.objectId);
         return objectManager.removeObject(mutation.objectId);
       }
 

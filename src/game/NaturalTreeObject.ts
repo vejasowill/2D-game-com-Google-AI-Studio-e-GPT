@@ -65,7 +65,7 @@ export class NaturalTreeObject implements NaturalObject, InteractiveWorldObject 
     return true;
   }
 
-  public interact(_context: InteractionContext): InteractionResult {
+  public interact(context: InteractionContext): InteractionResult {
     const isHarvested = (this.state as { harvested?: boolean } | undefined)?.harvested === true;
 
     if (isHarvested) {
@@ -87,6 +87,9 @@ export class NaturalTreeObject implements NaturalObject, InteractiveWorldObject 
       { worldX: dropX, worldY: dropY },
       'wood',
       3, // Quantidade de madeira gerada deterministicamente
+      16,
+      16,
+      context.world.getTime(),
     );
 
     return {

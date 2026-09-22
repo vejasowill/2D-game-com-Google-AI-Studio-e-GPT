@@ -127,13 +127,16 @@ export class Game {
     // 3. Se o deslocamento do Player cruzou uma fronteira de chunk, preparar os novos chunks imediatamente
     this.streamingSystem.update(this.player.position);
 
-    // 4. Executar o sistema de interação (busca determinística e execução de ação discreta se acionada)
+    // 4. Atualizar o relógio e a expiração de objetos temporários do mundo
+    this.world.update(deltaTime);
+
+    // 5. Executar o sistema de interação (busca determinística e execução de ação discreta se acionada)
     this.interactionSystem.update(this.player, this.world, this.input, deltaTime);
 
-    // 5. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
+    // 6. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
     this.input.clearFrameState();
 
-    // 6. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
+    // 7. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
     const playerCenter = this.player.getCenter();
     this.camera.follow(playerCenter.worldX, playerCenter.worldY, deltaTime);
   }
