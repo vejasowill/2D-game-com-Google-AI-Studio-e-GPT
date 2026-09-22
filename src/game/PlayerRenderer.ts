@@ -1,15 +1,18 @@
+import { AssetManager } from './AssetManager.ts';
 import { Camera } from './Camera.ts';
 import { Player, PlayerDirection } from './Player.ts';
 import { PlayerSpriteSheetDefinition, VisualBounds } from './PlayerVisual.ts';
+import { SpriteRenderer } from './SpriteRenderer.ts';
 import { ViewportSize } from './types.ts';
 
 /**
  * Renderizador responsável exclusivamente pela apresentação gráfica do Player.
  * Desacopla a camada visual das regras de física, colisão e gerenciamento do mundo.
- * Projetado para suportar sprites pixel art 32×64 px no futuro sem alterações estruturais.
+ * Integrado ao subsistema genérico de SpriteRenderer e AssetManager,
+ * suportando sprites pixel art 32×64 px nativamente sem alterações na física ou no Y-sorting.
  */
 export class PlayerRenderer {
-  // Paleta da representação procedural (aventureiro top-down)
+  // Paleta da representação procedural (aventureiro top-down - fallback temporário)
   private readonly playerShadowColor: string = 'rgba(0, 0, 0, 0.28)';
   private readonly tunicColor: string = '#2563eb';
   private readonly tunicBorderColor: string = '#1d4ed8';
@@ -22,10 +25,15 @@ export class PlayerRenderer {
   private readonly buckleColor: string = '#fbbf24';
   private readonly eyeColor: string = '#0f172a';
 
-  /** Definição opcional de spritesheet quando sprites pixel art reais forem integrados futuramente */
+  /** Definição opcional direta de spritesheet (para injeção manual ou testes específicos) */
   public spriteSheet: PlayerSpriteSheetDefinition | null = null;
 
-  constructor(private readonly ctx: CanvasRenderingContext2D) {}
+  /** Sub-renderizador dedicado de Pixel Art (garante nearest-neighbor e alinhamento inteiro) */
+  public readonly spriteRenderer: SpriteRenderer;
+
+  constructor(private readonly ctx: CanvasRenderingContext2D) {
+    this.spriteRenderer = new SpriteRenderer(ctx);
+  }
 
   /**
    * Renderiza o Player na tela.
@@ -46,7 +54,6 @@ export class PlayerRenderer {
     const baseY = screenFoot.screenY;
 
     // Frustum culling baseado na caixa delimitadora visual completa do personagem
-    // (com altura visual expandida de 64px e margem de segurança)
     const margin = 16;
     if (
       cx + visualBounds.width / 2 + margin < 0 ||
@@ -57,17 +64,57 @@ export class PlayerRenderer {
       return;
     }
 
-    // 1. Sombra elíptica no solo (ancorada na linha física dos pés)
+    // 1. Sombra elíptica no solo (ancorada estritamente na linha física dos pés)
     this.renderShadow(cx, baseY);
 
-    // 2. Se houver um spritesheet com imagem real carregada, desenha o frame animado
+    // 2. Se houver um spritesheet direto com imagem real carregada, desenha o frame
     if (this.spriteSheet && this.spriteSheet.imageSource) {
-      this.renderSpriteFrame(player, cx, baseY, visualBounds);
+      this.renderCustomSpriteFrame(player, cx, baseY, visualBounds);
       return;
     }
 
-    // 3. Fallback / Placeholder vetorial atual: preserva o visual procedural do aventureiro
+    // 3. Consulta o AssetManager pelo spritesheet registrado para o Player
+    const registeredSheet = AssetManager.getInstance().getSpriteSheet('player');
+    if (registeredSheet && registeredSheet.imageSource) {
+      const dirStr = this.directionToString(player.direction);
+      const animName = player.isMoving ? 'walk' : 'idle';
+      const frame = registeredSheet.getFrame(
+        animName,
+        dirStr,
+        player.animationState.currentFrame,
+      );
+
+      if (frame) {
+        this.spriteRenderer.renderSprite(
+          camera,
+          viewport,
+          visualBounds,
+          registeredSheet,
+          frame,
+        );
+        return;
+      }
+    }
+
+    // 4. Fallback / Placeholder vetorial atual: preserva o visual procedural do aventureiro
     this.renderProceduralCharacter(player, cx, baseY);
+  }
+
+  /**
+   * Converte o enum PlayerDirection para as strings canônicas de direção de animação.
+   */
+  private directionToString(dir: PlayerDirection): string {
+    switch (dir) {
+      case PlayerDirection.UP:
+        return 'up';
+      case PlayerDirection.LEFT:
+        return 'left';
+      case PlayerDirection.RIGHT:
+        return 'right';
+      case PlayerDirection.DOWN:
+      default:
+        return 'down';
+    }
   }
 
   /**
@@ -81,9 +128,9 @@ export class PlayerRenderer {
   }
 
   /**
-   * Renderiza um frame do spritesheet (preparação para futura integração de arte pixel art).
+   * Renderiza um frame do spritesheet personalizado.
    */
-  private renderSpriteFrame(
+  private renderCustomSpriteFrame(
     player: Player,
     cx: number,
     baseY: number,
@@ -97,8 +144,11 @@ export class PlayerRenderer {
       player.animationState.currentFrame,
     );
 
-    const drawX = cx - visualBounds.width * player.visualConfig.anchorX;
-    const drawY = baseY - visualBounds.height * player.visualConfig.anchorY;
+    // Garante renderização pixel art sem suavização
+    this.spriteRenderer.enforcePixelArtSmoothing();
+
+    const drawX = Math.round(cx - visualBounds.width * player.visualConfig.anchorX);
+    const drawY = Math.round(baseY - visualBounds.height * player.visualConfig.anchorY);
 
     this.ctx.drawImage(
       this.spriteSheet.imageSource,
@@ -116,6 +166,7 @@ export class PlayerRenderer {
   /**
    * Renderiza a figura humana procedural atual, perfeitamente ancorada em relação
    * ao centro horizontal cx e à linha de base dos pés baseY.
+   * Funciona como fallback técnico estável.
    */
   private renderProceduralCharacter(player: Player, cx: number, baseY: number): void {
     const dir = player.direction;

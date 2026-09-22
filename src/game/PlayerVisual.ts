@@ -1,25 +1,27 @@
 import { PlayerDirection } from './Player.ts';
+import { SpriteFrame } from './SpriteAnimation.ts';
 import { WorldCoord } from './types.ts';
+import {
+  ANCHOR_FEET,
+  VisualBounds,
+  VisualConfig,
+  calculateEntityVisualBounds,
+} from './VisualAnchor.ts';
+
+// Reexportações para compatibilidade arquitetural ampla
+export { ANCHOR_FEET, calculateEntityVisualBounds };
+export type { VisualBounds, VisualConfig };
 
 /**
  * Configuração de dimensões visuais e ponto de ancoragem do Player.
  * Permite separar a representação gráfica (ex: sprite 32×64 px) da hitbox física (ex: 24×24 px).
  */
-export interface PlayerVisualConfig {
-  /** Largura do sprite/representação visual em pixels no mundo (ex: 32) */
+export interface PlayerVisualConfig extends VisualConfig {
   readonly visualWidth: number;
-  /** Altura do sprite/representação visual em pixels no mundo (ex: 64) */
   readonly visualHeight: number;
-  /**
-   * Ponto de ancoragem horizontal relativo [0.0 = esquerda, 0.5 = centro, 1.0 = direita].
-   * O padrão 0.5 centraliza o sprite com a linha média da hitbox física.
-   */
   readonly anchorX: number;
-  /**
-   * Ponto de ancoragem vertical relativo [0.0 = topo, 1.0 = base dos pés].
-   * O padrão 1.0 fixa a base inferior do sprite diretamente na linha dos pés física do personagem.
-   */
   readonly anchorY: number;
+  readonly scale?: number;
 }
 
 /**
@@ -29,19 +31,10 @@ export interface PlayerVisualConfig {
 export const DEFAULT_PLAYER_VISUAL_CONFIG: PlayerVisualConfig = {
   visualWidth: 32,
   visualHeight: 64,
-  anchorX: 0.5,
-  anchorY: 1.0,
+  anchorX: ANCHOR_FEET.anchorX,
+  anchorY: ANCHOR_FEET.anchorY,
+  scale: 1.0,
 };
-
-/**
- * Limites da caixa delimitadora visual no espaço do mundo.
- */
-export interface VisualBounds {
-  readonly worldX: number;
-  readonly worldY: number;
-  readonly width: number;
-  readonly height: number;
-}
 
 /**
  * Calcula os limites visuais (bounding box) da renderização a partir da posição física
@@ -56,33 +49,16 @@ export function calculatePlayerVisualBounds(
   physicalSize: number,
   config: PlayerVisualConfig = DEFAULT_PLAYER_VISUAL_CONFIG,
 ): VisualBounds {
-  // Ponto de referência absoluto do solo / base dos pés do personagem
-  const footBaseX = position.worldX + physicalSize / 2;
-  const footBaseY = position.worldY + physicalSize;
-
-  // O sprite é posicionado de modo que seu ponto (anchorX, anchorY) coincida com (footBaseX, footBaseY)
-  const worldX = footBaseX - config.visualWidth * config.anchorX;
-  const worldY = footBaseY - config.visualHeight * config.anchorY;
-
-  return {
-    worldX,
-    worldY,
-    width: config.visualWidth,
-    height: config.visualHeight,
-  };
+  return calculateEntityVisualBounds(position, physicalSize, physicalSize, config);
 }
 
 /**
  * Parâmetros de temporização da animação do personagem.
  */
 export interface PlayerAnimationConfig {
-  /** Quantidade de frames na animação de repouso (idle) */
   readonly idleFramesCount: number;
-  /** Quantidade de frames na animação de caminhada (walk) */
   readonly walkFramesCount: number;
-  /** Duração de cada frame de idle em segundos */
   readonly idleFrameDuration: number;
-  /** Duração de cada frame de caminhada em segundos */
   readonly walkFrameDuration: number;
 }
 
@@ -149,12 +125,7 @@ export class PlayerAnimationState {
 /**
  * Retângulo de recorte de um frame no spritesheet fonte.
  */
-export interface SpriteFrameRect {
-  readonly sx: number;
-  readonly sy: number;
-  readonly sWidth: number;
-  readonly sHeight: number;
-}
+export type SpriteFrameRect = SpriteFrame;
 
 /**
  * Abstração de spritesheet para quando sprites pixel art reais forem introduzidos futuramente.
@@ -165,5 +136,5 @@ export interface PlayerSpriteSheetDefinition {
   readonly spriteWidth: number;
   readonly spriteHeight: number;
   readonly imageSource?: CanvasImageSource | null;
-  getFrameRect(direction: PlayerDirection, isMoving: boolean, frameIndex: number): SpriteFrameRect;
+  getFrameRect(direction: PlayerDirection, isMoving: boolean, frameIndex: number): SpriteFrame;
 }

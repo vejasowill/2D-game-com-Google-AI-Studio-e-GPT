@@ -2,6 +2,7 @@ import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { Player } from './Player.ts';
 import { PlayerRenderer } from './PlayerRenderer.ts';
+import { SpriteRenderer } from './SpriteRenderer.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
 import { ViewportSize } from './types.ts';
@@ -15,7 +16,8 @@ export class Renderer {
   // Estilo visual inicial de fundo
   private readonly clearColor: string = '#121316';
 
-  // Sub-renderizador dedicado do Player
+  // Sub-renderizador dedicado de Pixel Art e do Player
+  public readonly spriteRenderer: SpriteRenderer;
   public readonly playerRenderer: PlayerRenderer;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -25,6 +27,7 @@ export class Renderer {
       throw new Error('Failed to obtain CanvasRenderingContext2D.');
     }
     this.ctx = context;
+    this.spriteRenderer = new SpriteRenderer(this.ctx);
     this.playerRenderer = new PlayerRenderer(this.ctx);
     this.resize();
   }
@@ -48,6 +51,9 @@ export class Renderer {
     }
 
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Reafirma estritamente a desativação de suavização de pixel art após redimensionamento do Canvas
+    this.spriteRenderer.enforcePixelArtSmoothing();
   }
 
   public getViewportSize(): ViewportSize {
