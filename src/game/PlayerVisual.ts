@@ -53,6 +53,34 @@ export function calculatePlayerVisualBounds(
 }
 
 /**
+ * Estados fundamentais de ação do personagem na camada de gameplay.
+ */
+export enum PlayerActionState {
+  IDLE = 'idle',
+  WALK = 'walk',
+  USE_ITEM = 'use_item',
+}
+
+/**
+ * Representação imutável de uma ação temporária de ferramenta ou item em execução pelo Player.
+ * Totalmente desacoplada de contagem fixa de frames de sprite ou dimensões de hitbox.
+ */
+export interface PlayerActiveAction {
+  /** Identificador canônico da ação sendo executada (ex: 'chop', 'mine', 'attack') */
+  readonly action: string;
+  /** Identificador do item utilizado (ex: 'axe') */
+  readonly itemId: string;
+  /** Duração total da ação em segundos (ex: 0.4s) */
+  readonly duration: number;
+  /** Tempo já decorrido desde o início da ação em segundos */
+  readonly elapsedTime: number;
+  /** Progresso normalizado da ação entre 0.0 (início) e 1.0 (conclusão) */
+  readonly progress: number;
+  /** Direção cardinal em que o jogador estava virado ao disparar a ação */
+  readonly direction: PlayerDirection;
+}
+
+/**
  * Parâmetros de temporização da animação do personagem.
  */
 export interface PlayerAnimationConfig {
@@ -60,13 +88,17 @@ export interface PlayerAnimationConfig {
   readonly walkFramesCount: number;
   readonly idleFrameDuration: number;
   readonly walkFrameDuration: number;
+  readonly useItemFramesCount?: number;
+  readonly useItemFrameDuration?: number;
 }
 
 export const DEFAULT_PLAYER_ANIMATION_CONFIG: PlayerAnimationConfig = {
   idleFramesCount: 2,
   walkFramesCount: 4,
+  useItemFramesCount: 4,
   idleFrameDuration: 0.5,
   walkFrameDuration: 0.15,
+  useItemFrameDuration: 0.1,
 };
 
 /**

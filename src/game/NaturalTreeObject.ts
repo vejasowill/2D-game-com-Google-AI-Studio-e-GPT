@@ -15,6 +15,16 @@ import { NaturalObject, NaturalObjectType } from './NaturalObjectDefinition.ts';
 import { WorldCoord } from './types.ts';
 
 /**
+ * Estado estruturado da árvore no mundo de gameplay.
+ * Desacoplado de cores, formatos vetoriais ou spritesheets.
+ */
+export interface NaturalTreeState {
+  readonly chopped: boolean;
+  readonly harvested: boolean;
+  readonly choppedAt?: number;
+}
+
+/**
  * Objeto natural de árvore interativa que implementa suporte tanto à interação
  * básica ("Sacudir Árvore") quanto ao sistema genérico de ações de ferramentas ("chop").
  *
@@ -76,6 +86,28 @@ export class NaturalTreeObject
 
   public get isHarvested(): boolean {
     return (this.state as { harvested?: boolean } | undefined)?.harvested === true;
+  }
+
+  /**
+   * Retorna o estado tipado e semântico da árvore.
+   */
+  public getTreeState(): NaturalTreeState {
+    const s = this.state as Partial<NaturalTreeState> | undefined;
+    return {
+      chopped: s?.chopped === true,
+      harvested: s?.harvested === true,
+      choppedAt: s?.choppedAt,
+    };
+  }
+
+  /**
+   * Retorna o estágio biológico/físico atual da árvore para apresentação:
+   * 'stump' (cortada/toco), 'harvested' (sacudida/sem galhos) ou 'intact' (plena).
+   */
+  public getStage(): 'intact' | 'harvested' | 'stump' {
+    if (this.isChopped) return 'stump';
+    if (this.isHarvested) return 'harvested';
+    return 'intact';
   }
 
   public canInteract(): boolean {
@@ -192,7 +224,7 @@ export class NaturalTreeObject
       action: 'chop',
       code: 'tree_chopped',
       message: 'Árvore cortada!',
-      statePatch: { chopped: true },
+      statePatch: { chopped: true, choppedAt: context.world.getTime() },
       mutations: [
         {
           type: 'create_object',

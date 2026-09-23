@@ -161,6 +161,8 @@ export class AssetManager {
     // Grade top-down clássica de 4 direções:
     // Linhas 0..3: Idle (Down, Up, Left, Right) com 2 frames
     // Linhas 4..7: Walk (Down, Up, Left, Right) com 4 frames
+    // Linhas 8..11: Chop (Down, Up, Left, Right) com 4 frames (ação de machado)
+    // Linhas 12..15: Use Tool/Item genérico (Down, Up, Left, Right) com 4 frames
     const playerSheet = createGridSpriteSheet({
       id: 'player',
       imagePath: '/src/assets/player/player_base.png',
@@ -181,9 +183,88 @@ export class AssetManager {
           hasDirections: true,
           loop: true,
         },
+        chop: {
+          rowStart: 8,
+          frameCount: 4,
+          frameDuration: 0.1,
+          hasDirections: true,
+          loop: false,
+        },
+        use_item: {
+          rowStart: 12,
+          frameCount: 4,
+          frameDuration: 0.1,
+          hasDirections: true,
+          loop: false,
+        },
       },
     });
-
     this.registerSpriteSheet(playerSheet);
+
+    // 2. Definição do Spritesheet de Árvore (Vegetação: 32×48 px)
+    // Linha 0: Árvore intacta
+    // Linha 1: Toco remanescente (árvore cortada)
+    const treeSheet = createGridSpriteSheet({
+      id: 'tree',
+      imagePath: '/src/assets/vegetation/tree.png',
+      frameWidth: 32,
+      frameHeight: 48,
+      animationConfigs: {
+        intact: {
+          rowStart: 0,
+          frameCount: 1,
+          frameDuration: 1.0,
+          hasDirections: false,
+          loop: true,
+        },
+        stump: {
+          rowStart: 1,
+          frameCount: 1,
+          frameDuration: 1.0,
+          hasDirections: false,
+          loop: true,
+        },
+      },
+    });
+    this.registerSpriteSheet(treeSheet);
+
+    // 3. Definição dos Itens e Ferramentas (16×16 px)
+    const itemIds = ['wood', 'axe', 'stone', 'flower'] as const;
+    for (const itemId of itemIds) {
+      const itemSheet = createGridSpriteSheet({
+        id: `item_${itemId}`,
+        imagePath: `/src/assets/items/${itemId}.png`,
+        frameWidth: 16,
+        frameHeight: 16,
+        animationConfigs: {
+          idle: {
+            rowStart: 0,
+            frameCount: 1,
+            frameDuration: 1.0,
+            hasDirections: false,
+            loop: true,
+          },
+        },
+      });
+      this.registerSpriteSheet(itemSheet);
+
+      // Alias para busca direta pelo itemId
+      const itemDirectSheet = createGridSpriteSheet({
+        id: itemId,
+        imagePath: `/src/assets/items/${itemId}.png`,
+        frameWidth: 16,
+        frameHeight: 16,
+        animationConfigs: {
+          idle: {
+            rowStart: 0,
+            frameCount: 1,
+            frameDuration: 1.0,
+            hasDirections: false,
+            loop: true,
+          },
+        },
+      });
+      this.registerSpriteSheet(itemDirectSheet);
+    }
   }
 }

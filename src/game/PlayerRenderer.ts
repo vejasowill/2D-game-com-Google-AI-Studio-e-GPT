@@ -1,6 +1,6 @@
 import { AssetManager } from './AssetManager.ts';
 import { Camera } from './Camera.ts';
-import { Player, PlayerDirection } from './Player.ts';
+import { Player, PlayerActionState, PlayerDirection } from './Player.ts';
 import { PlayerSpriteSheetDefinition, VisualBounds } from './PlayerVisual.ts';
 import { SpriteRenderer } from './SpriteRenderer.ts';
 import { ViewportSize } from './types.ts';
@@ -84,11 +84,39 @@ export class PlayerRenderer {
       const registeredSheet = AssetManager.getInstance().getSpriteSheet('player');
       if (registeredSheet && registeredSheet.imageSource) {
         const dirStr = this.directionToString(player.direction);
-        const animName = player.isMoving ? 'walk' : 'idle';
+        const actionState = player.getActionState();
+        const activeAction = player.getActiveAction();
+
+        let animName: string;
+        let frameIndex: number;
+
+        if (actionState === PlayerActionState.USE_ITEM && activeAction) {
+          // Busca animação declarativa no spritesheet:
+          // Ordem de preferência: "<action>_<itemId>" (ex: 'chop_axe'), "<action>" (ex: 'chop'), "use_item"
+          const specificAnim = `${activeAction.action}_${activeAction.itemId}`;
+          if (registeredSheet.getAnimation(specificAnim)) {
+            animName = specificAnim;
+          } else if (registeredSheet.getAnimation(activeAction.action)) {
+            animName = activeAction.action;
+          } else if (registeredSheet.getAnimation('use_item')) {
+            animName = 'use_item';
+          } else {
+            animName = player.isMoving ? 'walk' : 'idle';
+          }
+
+          const animDef = registeredSheet.getAnimation(animName);
+          const totalFrames = animDef?.directionalFrames?.[dirStr]?.length ?? animDef?.frames?.length ?? 1;
+          // Frame selecionado deterministicamente a partir do progresso normalizado da ação [0.0, 1.0]
+          frameIndex = Math.min(Math.floor(activeAction.progress * totalFrames), Math.max(0, totalFrames - 1));
+        } else {
+          animName = player.isMoving ? 'walk' : 'idle';
+          frameIndex = player.animationState.currentFrame;
+        }
+
         const frame = registeredSheet.getFrame(
           animName,
           dirStr,
-          player.animationState.currentFrame,
+          frameIndex,
         );
 
         if (frame) {
@@ -188,20 +216,44 @@ export class PlayerRenderer {
       this.ctx.fillStyle = '#fbbf24';
       this.ctx.fillRect(drawX - 1, drawY - 1, 2, 2);
     } else if (itemId === 'axe') {
-      // Machado com animação sutil de balanço quando ativo
-      const isSwing = player.isUsingItem;
-      const swingOffset = isSwing ? 3 : 0;
+      // Machado com arco de balanço técnico proporcional ao progresso da ação
+      const activeAction = player.getActiveAction();
+      let swingOffsetX = 0;
+      let swingOffsetY = 0;
+
+      if (activeAction && activeAction.action === 'chop') {
+        const p = activeAction.progress;
+        if (p < 0.25) {
+          // Levantamento
+          swingOffsetY = -Math.round((p / 0.25) * 3);
+        } else if (p < 0.65) {
+          // Golpe rápido descendente
+          const strikeP = (p - 0.25) / 0.4;
+          swingOffsetY = -3 + Math.round(strikeP * 7);
+          swingOffsetX = dir === PlayerDirection.LEFT ? -2 : dir === PlayerDirection.RIGHT ? 2 : 0;
+        } else {
+          // Recuperação pós-impacto
+          const returnP = (p - 0.65) / 0.35;
+          swingOffsetY = 4 - Math.round(returnP * 4);
+        }
+      } else if (player.isUsingItem) {
+        swingOffsetY = 3;
+      }
+
+      const axeX = drawX + swingOffsetX;
+      const axeY = drawY + swingOffsetY;
+
       // Cabo de madeira
       this.ctx.fillStyle = '#92400e';
-      this.ctx.fillRect(drawX - 1, drawY - 6 + swingOffset, 2, 10);
+      this.ctx.fillRect(axeX - 1, axeY - 6, 2, 10);
       // Lâmina de ferro
       this.ctx.fillStyle = '#94a3b8';
-      this.ctx.fillRect(drawX, drawY - 6 + swingOffset, 4, 4);
+      this.ctx.fillRect(axeX, axeY - 6, 4, 4);
       this.ctx.fillStyle = '#cbd5e1';
-      this.ctx.fillRect(drawX + 3, drawY - 6 + swingOffset, 1, 4);
+      this.ctx.fillRect(axeX + 3, axeY - 6, 1, 4);
       this.ctx.strokeStyle = '#475569';
       this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(drawX - 0.5, drawY - 6.5 + swingOffset, 5, 5);
+      this.ctx.strokeRect(axeX - 0.5, axeY - 6.5, 5, 5);
     } else {
       // Item genérico (ícone sutil)
       this.ctx.fillStyle = '#f59e0b';

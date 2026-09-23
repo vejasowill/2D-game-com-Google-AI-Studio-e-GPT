@@ -392,8 +392,9 @@ export class ItemUseSystem {
         this.movementBlockTimer = useDef.blocksMovementDuration;
       }
 
-      // Sinalizar estado de uso no Player
-      player.setUsingItem(true, Math.min(cooldownToApply, 0.25));
+      // Iniciar estado temporal determinístico de ação no Player
+      const actionDuration = useDef.blocksMovementDuration ?? Math.min(cooldownToApply, 0.4);
+      player.startAction(action, equipped.itemId, actionDuration);
 
       // Registrar mensagem de feedback transitória
       if (result.message) {

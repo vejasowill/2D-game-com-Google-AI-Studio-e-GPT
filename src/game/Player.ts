@@ -6,12 +6,17 @@ import { DEFAULT_INVENTORY_SLOT_COUNT, Inventory } from './Inventory.ts';
 import { ItemStack } from './ItemStack.ts';
 import {
   DEFAULT_PLAYER_VISUAL_CONFIG,
+  PlayerActionState,
+  PlayerActiveAction,
   PlayerAnimationState,
   PlayerVisualConfig,
   VisualBounds,
   calculatePlayerVisualBounds,
 } from './PlayerVisual.ts';
 import { InputSource, WorldCoord } from './types.ts';
+
+export { PlayerActionState };
+export type { PlayerActiveAction };
 
 export enum PlayerDirection {
   UP = 'up',
@@ -28,6 +33,9 @@ export class Player {
   public isMoving: boolean = false;
   public isUsingItem: boolean = false;
   private useItemTimer: number = 0;
+
+  /** Ação temporária ativa em execução pelo Player (ex: corte de árvore, uso de ferramenta) */
+  private activeAction: PlayerActiveAction | null = null;
 
   /** Configuração das dimensões visuais e ancoragem gráfica (independente da hitbox física) */
   public visualConfig: PlayerVisualConfig = DEFAULT_PLAYER_VISUAL_CONFIG;
@@ -128,26 +136,47 @@ export class Player {
     const EPSILON = 1e-4;
     this.isMoving = movedDistance > EPSILON;
 
-    // Atualiza a orientação visual com base na intenção de entrada ou deslocamento real
-    if (inputMagnitude > EPSILON) {
-      if (Math.abs(direction.x) > Math.abs(direction.y)) {
-        this.direction = direction.x > 0 ? PlayerDirection.RIGHT : PlayerDirection.LEFT;
-      } else {
-        this.direction = direction.y > 0 ? PlayerDirection.DOWN : PlayerDirection.UP;
+    // Atualiza a orientação visual com base na intenção de entrada ou deslocamento real,
+    // a menos que uma ação orientada de ferramenta esteja em andamento (preserva a direção do golpe)
+    if (!this.activeAction) {
+      if (inputMagnitude > EPSILON) {
+        if (Math.abs(direction.x) > Math.abs(direction.y)) {
+          this.direction = direction.x > 0 ? PlayerDirection.RIGHT : PlayerDirection.LEFT;
+        } else {
+          this.direction = direction.y > 0 ? PlayerDirection.DOWN : PlayerDirection.UP;
+        }
+      } else if (movedDistance > EPSILON) {
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          this.direction = deltaX > 0 ? PlayerDirection.RIGHT : PlayerDirection.LEFT;
+        } else {
+          this.direction = deltaY > 0 ? PlayerDirection.DOWN : PlayerDirection.UP;
+        }
       }
-    } else if (movedDistance > EPSILON) {
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        this.direction = deltaX > 0 ? PlayerDirection.RIGHT : PlayerDirection.LEFT;
-      } else {
-        this.direction = deltaY > 0 ? PlayerDirection.DOWN : PlayerDirection.UP;
-      }
+    } else {
+      // Durante o golpe, a orientação visual permanece estritamente fixada na direção da ação
+      this.direction = this.activeAction.direction;
     }
 
     // Avança a máquina de estados de animação determinística
     this.animationState.update(deltaTime, this.isMoving);
 
-    // Atualiza o estado transitório de uso de ferramenta
-    if (this.useItemTimer > 0) {
+    // Atualiza o ciclo de vida e progresso determinístico da ação ativa
+    if (this.activeAction) {
+      const newElapsed = this.activeAction.elapsedTime + deltaTime;
+      const duration = this.activeAction.duration;
+      if (newElapsed >= duration) {
+        this.activeAction = null;
+        this.isUsingItem = false;
+        this.useItemTimer = 0;
+      } else {
+        const progress = duration > 0 ? Math.min(1.0, newElapsed / duration) : 1.0;
+        this.activeAction = {
+          ...this.activeAction,
+          elapsedTime: newElapsed,
+          progress,
+        };
+      }
+    } else if (this.useItemTimer > 0) {
       this.useItemTimer = Math.max(0, this.useItemTimer - deltaTime);
       if (this.useItemTimer === 0) {
         this.isUsingItem = false;
@@ -159,11 +188,65 @@ export class Player {
   }
 
   /**
+   * Retorna o estado fundamental de ação do personagem na camada de gameplay:
+   * USE_ITEM (se houver ação ativa), WALK (se houver deslocamento físico) ou IDLE.
+   * Totalmente desacoplado do número de frames de sprite ou camadas de renderização.
+   */
+  public getActionState(): PlayerActionState {
+    if (this.activeAction !== null || this.isUsingItem) {
+      return PlayerActionState.USE_ITEM;
+    }
+    if (this.isMoving) {
+      return PlayerActionState.WALK;
+    }
+    return PlayerActionState.IDLE;
+  }
+
+  /**
+   * Retorna os dados da ação ativa em execução pelo Player, ou null se em repouso/movimento normal.
+   */
+  public getActiveAction(): PlayerActiveAction | null {
+    return this.activeAction;
+  }
+
+  /**
+   * Dispara uma ação temporária do Player (ex: corte com machado).
+   * Define o estado temporal determinístico sem alterar a hitbox física ou a posição.
+   */
+  public startAction(action: string, itemId: string, duration: number = 0.4): void {
+    const validDuration = Math.max(0.01, duration);
+    this.activeAction = {
+      action,
+      itemId,
+      duration: validDuration,
+      elapsedTime: 0,
+      progress: 0,
+      direction: this.direction,
+    };
+    this.isUsingItem = true;
+    this.useItemTimer = validDuration;
+  }
+
+  /**
+   * Cancela imediatamente qualquer ação ativa em andamento.
+   */
+  public cancelAction(): void {
+    this.activeAction = null;
+    this.isUsingItem = false;
+    this.useItemTimer = 0;
+  }
+
+  /**
    * Sinaliza que o jogador iniciou o uso de um item por um período determinístico.
+   * Mantém compatibilidade com chamadas simples e sincroniza com o sistema de ação ativa.
    */
   public setUsingItem(using: boolean, duration: number = 0.2): void {
-    this.isUsingItem = using;
-    this.useItemTimer = using ? Math.max(0, duration) : 0;
+    if (using) {
+      const equipped = this.getEquippedItem();
+      this.startAction('use_item', equipped?.itemId ?? 'unknown', duration);
+    } else {
+      this.cancelAction();
+    }
   }
 
   /**

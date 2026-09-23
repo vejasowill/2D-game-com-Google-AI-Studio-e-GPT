@@ -1,3 +1,4 @@
+import { AssetManager } from './AssetManager.ts';
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { InteractionSystem } from './InteractionSystem.ts';
@@ -204,6 +205,24 @@ export class Renderer {
     switch (obj.type) {
       case 'tree': {
         const isChopped = (obj.state as { chopped?: boolean } | undefined)?.chopped === true;
+
+        // 1. Tenta renderizar via Spritesheet registrado no AssetManager (extensão limpa para artes futuras)
+        const treeSheet = AssetManager.getInstance().getSpriteSheet('tree');
+        if (treeSheet && treeSheet.imageSource) {
+          const frame = treeSheet.getFrame(isChopped ? 'stump' : 'intact') ?? treeSheet.getFrame('idle');
+          if (frame) {
+            this.spriteRenderer.renderSprite(
+              camera,
+              viewport,
+              { worldX: obj.position.worldX, worldY: obj.position.worldY, width, height },
+              treeSheet,
+              frame,
+            );
+            break;
+          }
+        }
+
+        // 2. Fallback técnico vetorial procedural (estável, sem arte externa requerida)
         if (isChopped) {
           // Renderiza toco remanescente da árvore cortada
           const trunkWidth = 10;
@@ -440,6 +459,34 @@ export class Renderer {
         const itemId = (obj.state as { itemId?: string } | undefined)?.itemId ?? 'wood';
         const quantity = (obj.state as { quantity?: number } | undefined)?.quantity ?? 1;
 
+        // 1. Tenta renderizar via Spritesheet registrado no AssetManager (extensão limpa para artes futuras)
+        const customSpriteId = (obj as unknown as { spriteAssetId?: string }).spriteAssetId;
+        const itemSheet = AssetManager.getInstance().getSpriteSheet(customSpriteId ?? `item_${itemId}`) ??
+                          AssetManager.getInstance().getSpriteSheet(itemId);
+        if (itemSheet && itemSheet.imageSource) {
+          const frame = itemSheet.getFrame('idle');
+          if (frame) {
+            this.spriteRenderer.renderSprite(
+              camera,
+              viewport,
+              { worldX: obj.position.worldX, worldY: obj.position.worldY, width, height },
+              itemSheet,
+              frame,
+            );
+            if (quantity > 1) {
+              this.ctx.fillStyle = '#000000';
+              this.ctx.font = 'bold 9px monospace';
+              this.ctx.textAlign = 'right';
+              this.ctx.textBaseline = 'bottom';
+              this.ctx.fillText(`${quantity}`, screenX + width + 1, screenY + height + 1);
+              this.ctx.fillStyle = '#ffffff';
+              this.ctx.fillText(`${quantity}`, screenX + width, screenY + height);
+            }
+            break;
+          }
+        }
+
+        // 2. Fallback técnico vetorial procedural (estável, sem arte externa requerida)
         // Sombra suave sob o item
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
         this.ctx.beginPath();
@@ -576,33 +623,57 @@ export class Renderer {
       }
 
       if (stack) {
-        // Miniatura técnica representativa por itemId
-        if (stack.itemId === 'wood') {
-          this.ctx.fillStyle = '#854d0e';
-          this.ctx.fillRect(slotX + 7, slotY + 10, 16, 10);
-          this.ctx.fillStyle = '#a16207';
-          this.ctx.fillRect(slotX + 9, slotY + 12, 12, 2);
-        } else if (stack.itemId === 'stone') {
-          this.ctx.fillStyle = '#64748b';
-          this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
-          this.ctx.fillStyle = '#94a3b8';
-          this.ctx.fillRect(slotX + 10, slotY + 10, 10, 3);
-        } else if (stack.itemId === 'flower') {
-          this.ctx.fillStyle = '#f43f5e';
-          this.ctx.fillRect(slotX + 9, slotY + 8, 12, 12);
-          this.ctx.fillStyle = '#fbbf24';
-          this.ctx.fillRect(slotX + 12, slotY + 11, 6, 6);
-        } else if (stack.itemId === 'axe') {
-          // Machado na barra de atalhos
-          this.ctx.fillStyle = '#92400e';
-          this.ctx.fillRect(slotX + 13, slotY + 8, 3, 14);
-          this.ctx.fillStyle = '#94a3b8';
-          this.ctx.fillRect(slotX + 15, slotY + 8, 6, 6);
-          this.ctx.fillStyle = '#e2e8f0';
-          this.ctx.fillRect(slotX + 19, slotY + 8, 2, 6);
-        } else {
-          this.ctx.fillStyle = '#d97706';
-          this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
+        // Tenta renderizar o ícone a partir do Spritesheet do item registrado no AssetManager
+        const itemSheet = AssetManager.getInstance().getSpriteSheet(`item_${stack.itemId}`) ??
+                          AssetManager.getInstance().getSpriteSheet(stack.itemId);
+        let renderedIcon = false;
+        if (itemSheet && itemSheet.imageSource) {
+          const frame = itemSheet.getFrame('idle');
+          if (frame && typeof this.ctx.drawImage === 'function') {
+            this.ctx.drawImage(
+              itemSheet.imageSource,
+              frame.sx,
+              frame.sy,
+              frame.sWidth,
+              frame.sHeight,
+              slotX + 7,
+              slotY + 7,
+              16,
+              16,
+            );
+            renderedIcon = true;
+          }
+        }
+
+        if (!renderedIcon) {
+          // Miniatura técnica representativa por itemId (fallback procedural)
+          if (stack.itemId === 'wood') {
+            this.ctx.fillStyle = '#854d0e';
+            this.ctx.fillRect(slotX + 7, slotY + 10, 16, 10);
+            this.ctx.fillStyle = '#a16207';
+            this.ctx.fillRect(slotX + 9, slotY + 12, 12, 2);
+          } else if (stack.itemId === 'stone') {
+            this.ctx.fillStyle = '#64748b';
+            this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
+            this.ctx.fillStyle = '#94a3b8';
+            this.ctx.fillRect(slotX + 10, slotY + 10, 10, 3);
+          } else if (stack.itemId === 'flower') {
+            this.ctx.fillStyle = '#f43f5e';
+            this.ctx.fillRect(slotX + 9, slotY + 8, 12, 12);
+            this.ctx.fillStyle = '#fbbf24';
+            this.ctx.fillRect(slotX + 12, slotY + 11, 6, 6);
+          } else if (stack.itemId === 'axe') {
+            // Machado na barra de atalhos
+            this.ctx.fillStyle = '#92400e';
+            this.ctx.fillRect(slotX + 13, slotY + 8, 3, 14);
+            this.ctx.fillStyle = '#94a3b8';
+            this.ctx.fillRect(slotX + 15, slotY + 8, 6, 6);
+            this.ctx.fillStyle = '#e2e8f0';
+            this.ctx.fillRect(slotX + 19, slotY + 8, 2, 6);
+          } else {
+            this.ctx.fillStyle = '#d97706';
+            this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
+          }
         }
 
         // Quantidade numérica no canto inferior direito
