@@ -6,6 +6,7 @@ import { ItemUseSystem } from './ItemUseSystem.ts';
 import { Player } from './Player.ts';
 import { PlayerRenderer } from './PlayerRenderer.ts';
 import { SpriteRenderer } from './SpriteRenderer.ts';
+import { TileSelectionSystem } from './TileSelectionSystem.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
 import { ViewportSize } from './types.ts';
@@ -72,6 +73,7 @@ export class Renderer {
     player: Player,
     interactionSystem?: InteractionSystem,
     itemUseSystem?: ItemUseSystem,
+    tileSelectionSystem?: TileSelectionSystem,
   ): void {
     // 1. Limpar fundo escuro
     this.ctx.fillStyle = this.clearColor;
@@ -135,6 +137,32 @@ export class Renderer {
             TILE_SIZE - 1,
             TILE_SIZE - 1,
           );
+        }
+      }
+    }
+
+    // 2.5. Renderizar indicador sutil e discreto da célula de terreno selecionada
+    if (tileSelectionSystem) {
+      const selected = tileSelectionSystem.getSelectedTile();
+      if (selected) {
+        const worldPos = world.tileToWorld(selected);
+        const screenPos = camera.worldToScreen(worldPos, viewport);
+        if (
+          screenPos.screenX + TILE_SIZE >= 0 &&
+          screenPos.screenX <= this.width &&
+          screenPos.screenY + TILE_SIZE >= 0 &&
+          screenPos.screenY <= this.height
+        ) {
+          this.ctx.save();
+          this.ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)'; // Amarelo discreto/sóbrio
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(
+            screenPos.screenX + 0.5,
+            screenPos.screenY + 0.5,
+            TILE_SIZE - 1,
+            TILE_SIZE - 1,
+          );
+          this.ctx.restore();
         }
       }
     }

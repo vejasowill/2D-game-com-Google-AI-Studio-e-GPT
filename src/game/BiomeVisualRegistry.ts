@@ -47,6 +47,12 @@ export class BiomeVisualRegistry {
       borderColor: '#0369a1',
     });
 
+    // Fallback para terreno removido/vazio em qualquer bioma
+    this.registerFallback(TileType.EMPTY, {
+      color: '#18181b',
+      borderColor: '#09090b',
+    });
+
     // 2. PLAINS (Planície temperada / pradaria)
     // Verde claro natural com contorno de grama equilibrada
     this.register(Biome.PLAINS, TileType.GRASS, {
@@ -119,6 +125,9 @@ export class BiomeVisualRegistry {
     // Fallback geral seguro
     if (tileType === TileType.WATER) {
       return { color: '#0284c7', borderColor: '#0369a1' };
+    }
+    if (tileType === TileType.EMPTY) {
+      return { color: '#18181b', borderColor: '#09090b' };
     }
     return { color: '#2e7d32', borderColor: '#256629' };
   }

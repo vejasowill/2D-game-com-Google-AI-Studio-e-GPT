@@ -4,13 +4,18 @@ import { Biome } from './Biome.ts';
 import { BiomeVisualRegistry, TerrainVisualDefinition } from './BiomeVisualRegistry.ts';
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
 import { DestroyedNaturalObjectRegistry } from './DestroyedNaturalObjectRegistry.ts';
+import { ItemDropObject } from './ItemDropObject.ts';
+import { ModifyTileMutation, WorldMutation } from './InteractionTypes.ts';
 import { NaturalObject } from './NaturalObjectDefinition.ts';
 import { NaturalObjectGenerator } from './NaturalObjectGenerator.ts';
 import { isTemporaryWorldObject } from './TemporaryWorldObject.ts';
 import { TemporaryObjectSystem } from './TemporaryObjectSystem.ts';
+import { TileModificationRegistry } from './TileModificationRegistry.ts';
+import { TileModificationResult, TileOperationContext } from './TileModificationTypes.ts';
 import { TileRegistry } from './TileRegistry.ts';
 import { EnvironmentalData, Tile, TileCoord, TileType, WorldCoord } from './types.ts';
 import { WorldGenerator } from './WorldGenerator.ts';
+import { WorldMutationHandler } from './WorldMutationHandler.ts';
 import { WorldObject } from './WorldObject.ts';
 import { WorldObjectManager } from './WorldObjectManager.ts';
 
@@ -20,6 +25,7 @@ export class World {
   private readonly objectManager: WorldObjectManager;
   private readonly temporaryObjectSystem: TemporaryObjectSystem;
   private readonly destroyedNaturalObjectRegistry: DestroyedNaturalObjectRegistry;
+  private readonly tileModificationRegistry: TileModificationRegistry;
   private worldTime: number = 0;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
@@ -28,6 +34,7 @@ export class World {
     this.objectManager = new WorldObjectManager();
     this.temporaryObjectSystem = new TemporaryObjectSystem(this.worldTime);
     this.destroyedNaturalObjectRegistry = new DestroyedNaturalObjectRegistry();
+    this.tileModificationRegistry = new TileModificationRegistry();
 
     // Integrar o ciclo de vida do WorldObjectManager com o TemporaryObjectSystem
     this.objectManager.setListener({
@@ -41,12 +48,24 @@ export class World {
       },
     });
 
-    // Sincronizar o ciclo de vida dos chunks do terreno com o WorldObjectManager:
-    // Apenas objetos procedurais naturais gerados pelo seed do terreno entram e saem na carga/descarga de chunks.
-    // Objetos marcados no DestroyedNaturalObjectRegistry são permanentemente ignorados e NÃO rematerializados.
-    // Entidades dinâmicas (drops, baús, construções) permanecem no WorldObjectManager com autoridade independente.
+    // Sincronizar o ciclo de vida dos chunks do terreno:
+    // 1. Modificações persistentes de terreno (TileModificationRegistry) são restauradas no Chunk;
+    // 2. Objetos procedurais naturais gerados pelo seed do terreno entram e saem na carga/descarga de chunks;
+    // 3. Objetos marcados no DestroyedNaturalObjectRegistry são permanentemente ignorados e NÃO rematerializados;
+    // 4. Entidades dinâmicas (drops, baús, construções) permanecem no WorldObjectManager com autoridade independente.
     this.chunkManager.setLifecycleListener({
       onChunkLoaded: (chunk: Chunk) => {
+        // Reaplicar quaisquer modificações de terreno registradas para este chunk
+        const modifications = this.tileModificationRegistry.getModificationsInChunk(
+          chunk.coord.chunkX,
+          chunk.coord.chunkY,
+        );
+        for (const mod of modifications) {
+          const { localX, localY } = ChunkManager.globalTileToChunkCoord(mod.tileX, mod.tileY);
+          chunk.setTile(localX, localY, mod.type);
+        }
+
+        // Adicionar objetos naturais não destruídos
         for (const obj of chunk.getNaturalObjects()) {
           if (!this.destroyedNaturalObjectRegistry.isDestroyedObject(obj)) {
             this.objectManager.addObject(obj);
@@ -102,6 +121,39 @@ export class World {
    */
   public getDestroyedNaturalObjectRegistry(): DestroyedNaturalObjectRegistry {
     return this.destroyedNaturalObjectRegistry;
+  }
+
+  /**
+   * Retorna o registro de modificações de terreno do jogador.
+   */
+  public getTileModificationRegistry(): TileModificationRegistry {
+    return this.tileModificationRegistry;
+  }
+
+  /**
+   * Consulta o estado efetivo de um tile no mundo considerando as alterações do jogador.
+   *
+   * Resolução:
+   * 1. Verifica se existe modificação persistente em TileModificationRegistry;
+   * 2. Se existir, usa o tile modificado correspondente;
+   * 3. Caso contrário, se o chunk estiver carregado, consulta o tile do chunk;
+   * 4. Se o chunk não estiver carregado, consulta o WorldGenerator sem materializar chunks.
+   *
+   * Operação O(1), determinística e segura para leitura pura.
+   */
+  public getEffectiveTile(tileX: number, tileY: number): Tile | null {
+    if (!this.isValidTileCoord(tileX, tileY)) {
+      return null;
+    }
+    const modification = this.tileModificationRegistry.getModification(tileX, tileY);
+    if (modification) {
+      return { type: modification.type };
+    }
+    const loadedChunkTile = this.chunkManager.getLoadedTile(tileX, tileY);
+    if (loadedChunkTile) {
+      return loadedChunkTile;
+    }
+    return { type: this.worldGenerator.getTileTypeAt(tileX, tileY) };
   }
 
   /**
@@ -189,19 +241,32 @@ export class World {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return null;
     }
+    const modification = this.tileModificationRegistry.getModification(tileX, tileY);
+    if (modification) {
+      return { type: modification.type };
+    }
     return this.chunkManager.getTile(tileX, tileY);
   }
 
   /**
    * Consulta um tile global SOMENTE se o chunk correspondente já estiver carregado na memória.
    * NUNCA gera um novo chunk. Retorna null caso o chunk ainda não esteja carregado.
-   * Utilizado pelo Renderer para garantir leitura pura sem causar geração acidental.
+   * Utilizado pelo Renderer e pelo CollisionSystem para leitura pura sem causar geração acidental.
    */
   public getLoadedTile(tileX: number, tileY: number): Tile | null {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return null;
     }
-    return this.chunkManager.getLoadedTile(tileX, tileY);
+    const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
+    const chunk = this.chunkManager.getLoadedChunk(chunkCoord.chunkX, chunkCoord.chunkY);
+    if (!chunk) {
+      return null;
+    }
+    const modification = this.tileModificationRegistry.getModification(tileX, tileY);
+    if (modification) {
+      return { type: modification.type };
+    }
+    return chunk.getTile(localX, localY);
   }
 
   /**
@@ -220,12 +285,184 @@ export class World {
 
   /**
    * Define o tipo de tile em uma coordenada global.
+   * Registra a alteração no TileModificationRegistry e atualiza o Chunk correspondente.
    */
   public setTile(tileX: number, tileY: number, type: TileType): boolean {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return false;
     }
+    this.tileModificationRegistry.registerModification({
+      tileX,
+      tileY,
+      type,
+      modifiedAt: this.worldTime,
+    });
     return this.chunkManager.setTile(tileX, tileY, type);
+  }
+
+  /**
+   * Aplica diretamente uma modificação de terreno no registro persistente.
+   * Se o chunk correspondente estiver carregado na memória, atualiza seu estado sem forçar
+   * a geração de chunks ainda não carregados.
+   */
+  public applyTileModification(tileX: number, tileY: number, type: TileType): boolean {
+    if (!this.isValidTileCoord(tileX, tileY)) {
+      return false;
+    }
+    this.tileModificationRegistry.registerModification({
+      tileX,
+      tileY,
+      type,
+      modifiedAt: this.worldTime,
+    });
+    const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
+    const loadedChunk = this.chunkManager.getLoadedChunk(chunkCoord.chunkX, chunkCoord.chunkY);
+    if (loadedChunk) {
+      loadedChunk.setTile(localX, localY, type);
+    }
+    return true;
+  }
+
+  /**
+   * Operação genérica de remoção / alteração de terreno.
+   * Não possui acoplamento com ferramentas concretas (machado, picareta, pá),
+   * atuando como contrato declarativo universal para mutação de tiles.
+   */
+  public removeTile(
+    tileX: number,
+    tileY: number,
+    context?: TileOperationContext,
+  ): TileModificationResult {
+    if (!this.isValidTileCoord(tileX, tileY)) {
+      return {
+        success: false,
+        tileX,
+        tileY,
+        previousTile: null,
+        newTile: null,
+        failureReason: 'INVALID_COORDINATES',
+      };
+    }
+
+    const currentTile = this.getEffectiveTile(tileX, tileY);
+    if (!currentTile) {
+      return {
+        success: false,
+        tileX,
+        tileY,
+        previousTile: null,
+        newTile: null,
+        failureReason: 'TILE_NOT_FOUND',
+      };
+    }
+
+    // 1. Validação de alcance se especificado
+    if (context?.sourcePosition && context.maxRange !== undefined) {
+      const tileCenterWorldX = tileX * TILE_SIZE + TILE_SIZE / 2;
+      const tileCenterWorldY = tileY * TILE_SIZE + TILE_SIZE / 2;
+      const distance = Math.hypot(
+        tileCenterWorldX - context.sourcePosition.worldX,
+        tileCenterWorldY - context.sourcePosition.worldY,
+      );
+      if (distance > context.maxRange) {
+        return {
+          success: false,
+          tileX,
+          tileY,
+          previousTile: currentTile,
+          newTile: null,
+          failureReason: 'OUT_OF_RANGE',
+        };
+      }
+    }
+
+    // 2. Validação customizada via predicado
+    if (context?.canRemovePredicate && !context.canRemovePredicate(currentTile, tileX, tileY)) {
+      return {
+        success: false,
+        tileX,
+        tileY,
+        previousTile: currentTile,
+        newTile: null,
+        failureReason: 'REMOVAL_PREVENTED_BY_PREDICATE',
+      };
+    }
+
+    // 3. Determinar o tipo de tile resultante
+    let targetType: TileType;
+    if (context?.replacementTileType) {
+      targetType = context.replacementTileType;
+    } else if (currentTile.type === TileType.WATER || currentTile.type === TileType.EMPTY) {
+      // Se era um tile bloqueante (água/vazio), a ação de remoção/limpeza torna-o caminhável (GRASS)
+      targetType = TileType.GRASS;
+    } else {
+      // Se era um tile caminhável (GRASS), a remoção escava/esvazia para EMPTY
+      targetType = TileType.EMPTY;
+    }
+
+    // 4. Impedir modificação redundante para o mesmo estado
+    if (currentTile.type === targetType) {
+      return {
+        success: false,
+        tileX,
+        tileY,
+        previousTile: currentTile,
+        newTile: null,
+        failureReason: 'ALREADY_IN_TARGET_STATE',
+      };
+    }
+
+    // 5. Construir as mutações de mundo declarativas
+    const tileMutation: ModifyTileMutation = {
+      type: 'modify_tile',
+      tileX,
+      tileY,
+      newTileType: targetType,
+      previousTileType: currentTile.type,
+    };
+    const mutations: WorldMutation[] = [tileMutation];
+
+    // 6. Criar drops declarativos se configurados
+    if (context?.drops && context.drops.length > 0 && !context.skipWorldDropSpawn) {
+      for (const drop of context.drops) {
+        const dropObj = new ItemDropObject(
+          `drop:tile:${tileX}:${tileY}:${drop.itemId}:${Math.floor(this.worldTime * 1000)}`,
+          {
+            worldX: tileX * TILE_SIZE + (TILE_SIZE - 16) / 2,
+            worldY: tileY * TILE_SIZE + (TILE_SIZE - 16) / 2,
+          },
+          drop.itemId,
+          drop.quantity,
+          16,
+          16,
+          this.worldTime,
+        );
+        mutations.push({
+          type: 'create_object',
+          object: dropObj,
+        });
+      }
+    }
+
+    // 7. Aplicar as mutações de forma consistente
+    this.applyTileModification(tileX, tileY, targetType);
+
+    // Se houver drops no mundo, aplicar as mutações de objeto via WorldMutationHandler
+    if (mutations.length > 1) {
+      for (let i = 1; i < mutations.length; i++) {
+        WorldMutationHandler.applyMutation(this, mutations[i]);
+      }
+    }
+
+    return {
+      success: true,
+      tileX,
+      tileY,
+      previousTile: currentTile,
+      newTile: { type: targetType },
+      drops: context?.drops,
+      mutations,
+    };
   }
 
   /**

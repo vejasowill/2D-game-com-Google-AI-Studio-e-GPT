@@ -55,6 +55,10 @@ export class WorldMutationHandler {
         return objectManager.updateObjectState(mutation.objectId, mutation.statePatch);
       }
 
+      case 'modify_tile': {
+        return world.applyTileModification(mutation.tileX, mutation.tileY, mutation.newTileType);
+      }
+
       default: {
         return false;
       }

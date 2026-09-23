@@ -11,6 +11,7 @@ import { ItemUseSystem } from './ItemUseSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
+import { TileSelectionSystem } from './TileSelectionSystem.ts';
 import { World } from './World.ts';
 
 export class Game {
@@ -22,6 +23,7 @@ export class Game {
   private streamingSystem: ChunkStreamingSystem;
   private interactionSystem: InteractionSystem;
   private itemUseSystem: ItemUseSystem;
+  private tileSelectionSystem: TileSelectionSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private canvas: HTMLCanvasElement;
@@ -51,9 +53,10 @@ export class Game {
     // Carga inicial dos chunks ao redor da posição de spawn do Player
     this.streamingSystem.forceUpdate(this.player.position);
 
-    // 5. Instanciar o sistema genérico de interação desacoplado e o sistema de uso de itens
+    // 5. Instanciar o sistema genérico de interação desacoplado, o sistema de uso de itens e a seleção de tiles
     this.interactionSystem = new InteractionSystem();
     this.itemUseSystem = new ItemUseSystem();
+    this.tileSelectionSystem = new TileSelectionSystem();
 
     // Adicionar um objeto interativo demonstrativo técnico e limpo (TestToggleObject) próximo ao spawn
     const demoToggleBeacon = new TestToggleObject(
@@ -110,6 +113,10 @@ export class Game {
 
   public getPlayer(): Player {
     return this.player;
+  }
+
+  public getTileSelectionSystem(): TileSelectionSystem {
+    return this.tileSelectionSystem;
   }
 
   public start(): void {
@@ -179,6 +186,7 @@ export class Game {
       this.player,
       this.interactionSystem,
       this.itemUseSystem,
+      this.tileSelectionSystem,
     );
   }
 
@@ -208,6 +216,15 @@ export class Game {
 
       if (clickedSlot !== null) {
         this.player.hotbar.setSelectedSlot(clickedSlot);
+      } else {
+        // Seleção de célula do terreno (toque no mobile ou clique no desktop)
+        const selectedTile = this.tileSelectionSystem.screenToTileCoord(
+          { screenX, screenY },
+          viewport,
+          this.camera,
+          this.world,
+        );
+        this.tileSelectionSystem.selectTile(selectedTile);
       }
     };
 

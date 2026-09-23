@@ -1,4 +1,5 @@
 import {
+  EMPTY_TILE_DEFINITION,
   GRASS_TILE_DEFINITION,
   TileDefinition,
   WATER_TILE_DEFINITION,
@@ -21,6 +22,7 @@ export class TileRegistry {
     }
     this.register(GRASS_TILE_DEFINITION);
     this.register(WATER_TILE_DEFINITION);
+    this.register(EMPTY_TILE_DEFINITION);
     this.isInitialized = true;
   }
 

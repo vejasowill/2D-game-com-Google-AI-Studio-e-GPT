@@ -1,4 +1,4 @@
-import { WorldBounds, WorldCoord } from './types.ts';
+import { TileType, WorldBounds, WorldCoord } from './types.ts';
 import { Player } from './Player.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
@@ -47,7 +47,8 @@ export type WorldMutationType =
   | 'create_object'
   | 'remove_object'
   | 'update_position'
-  | 'update_state';
+  | 'update_state'
+  | 'modify_tile';
 
 /** Mutação para criar/adicionar um novo WorldObject no mundo */
 export interface CreateObjectMutation {
@@ -77,6 +78,15 @@ export interface UpdateStateMutation {
   readonly statePatch: Readonly<Record<string, unknown>>;
 }
 
+/** Mutação para modificar o tipo de terreno de uma célula (tile) global do mundo */
+export interface ModifyTileMutation {
+  readonly type: 'modify_tile';
+  readonly tileX: number;
+  readonly tileY: number;
+  readonly newTileType: TileType;
+  readonly previousTileType?: TileType;
+}
+
 /**
  * União discriminada de todas as mutações possíveis no estado dos objetos do mundo.
  * O executor aplica essas mutações através do WorldObjectManager preservando o particionamento espacial.
@@ -85,7 +95,8 @@ export type WorldMutation =
   | CreateObjectMutation
   | RemoveObjectMutation
   | UpdatePositionMutation
-  | UpdateStateMutation;
+  | UpdateStateMutation
+  | ModifyTileMutation;
 
 /**
  * Estrutura extensível de resultado da execução de uma interação.

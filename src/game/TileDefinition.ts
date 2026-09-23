@@ -34,3 +34,16 @@ export const WATER_TILE_DEFINITION: TileDefinition = {
   color: '#0284c7',
   borderColor: '#0369a1',
 };
+
+/**
+ * Definição estática do tipo de terreno EMPTY (terreno removido/vazio/buraco).
+ * Não caminhável por padrão.
+ */
+export const EMPTY_TILE_DEFINITION: TileDefinition = {
+  type: TileType.EMPTY,
+  walkable: false,
+  movementCost: Infinity,
+  color: '#18181b',
+  borderColor: '#09090b',
+};
+
