@@ -151,9 +151,11 @@ ItemRegistry.ensureInitialized();
 
   // D. Verificar alteração determinística de estado da árvore
   assert.strictEqual(tree.isChopped, true, 'Árvore deve passar para o estado isChopped === true');
-  assert.strictEqual(tree.getStage(), 'stump', 'Estágio visual e lógico da árvore deve ser "stump"');
-  assert.strictEqual(tree.canInteract(), false, 'Toco remanescente não deve aceitar interação (sacudir)');
-  assert.strictEqual(tree.canReceiveAction('chop'), false, 'Toco remanescente não deve aceitar novo corte');
+  assert.strictEqual(tree.isDestroyed, true, 'Árvore deve passar para o estado isDestroyed === true');
+  assert.strictEqual(tree.getStage(), 'destroyed', 'Estágio visual e lógico da árvore deve ser "destroyed"');
+  assert.strictEqual(tree.canInteract(), false, 'Árvore destruída não deve aceitar interação (sacudir)');
+  assert.strictEqual(tree.canReceiveAction('chop'), false, 'Árvore destruída não deve aceitar novo corte');
+  assert.strictEqual(world.getObjectManager().getObjectById(tree.id), null, 'Árvore cortada deve ser completamente removida do ObjectManager');
 
   // E. Verificar geração determinística do drop de madeira no mundo
   const expectedDropId = `drop:wood:chop:12:14`;

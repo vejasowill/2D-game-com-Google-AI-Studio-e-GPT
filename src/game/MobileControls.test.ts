@@ -257,7 +257,9 @@ ItemRegistry.ensureInitialized();
   assert.strictEqual(useResult1?.action, 'chop', 'Ação executada deve ser chop');
   assert.strictEqual(useResult1?.code, 'tree_chopped', 'Resultado deve ser tree_chopped');
   assert.strictEqual(tree.isChopped, true, 'Árvore deve passar para o estado isChopped');
-  assert.strictEqual(tree.getStage(), 'stump', 'Estágio visual da árvore deve ser stump');
+  assert.strictEqual(tree.isDestroyed, true, 'Árvore deve passar para o estado isDestroyed');
+  assert.strictEqual(tree.getStage(), 'destroyed', 'Estágio visual da árvore deve ser destroyed');
+  assert.strictEqual(world.getObjectManager().getObjectById(tree.id), null, 'Árvore cortada deve ser removida do ObjectManager');
 
   input.triggerActionUp('use_item');
   input.clearFrameState();

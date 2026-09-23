@@ -24,6 +24,26 @@ export class WorldMutationHandler {
 
       case 'remove_object': {
         world.getTemporaryObjectSystem().unregister(mutation.objectId);
+
+        // Se for uma remoção permanente ou de um objeto natural, registra no DestroyedNaturalObjectRegistry
+        const existingObj = objectManager.getObjectById(mutation.objectId);
+        if (
+          mutation.permanent ||
+          mutation.objectId.startsWith('natural:') ||
+          (existingObj && 'naturalType' in existingObj)
+        ) {
+          world.getDestroyedNaturalObjectRegistry().registerDestroyed(mutation.objectId);
+          if (
+            existingObj &&
+            'naturalType' in existingObj &&
+            'sourceTileX' in existingObj &&
+            'sourceTileY' in existingObj
+          ) {
+            const nat = existingObj as { naturalType: string; sourceTileX: number; sourceTileY: number };
+            world.getDestroyedNaturalObjectRegistry().registerDestroyedAt(nat.naturalType, nat.sourceTileX, nat.sourceTileY);
+          }
+        }
+
         return objectManager.removeObject(mutation.objectId);
       }
 

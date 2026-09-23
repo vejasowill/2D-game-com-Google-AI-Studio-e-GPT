@@ -3,6 +3,7 @@ import { Chunk } from './Chunk.ts';
 import { Biome } from './Biome.ts';
 import { BiomeVisualRegistry, TerrainVisualDefinition } from './BiomeVisualRegistry.ts';
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
+import { DestroyedNaturalObjectRegistry } from './DestroyedNaturalObjectRegistry.ts';
 import { NaturalObject } from './NaturalObjectDefinition.ts';
 import { NaturalObjectGenerator } from './NaturalObjectGenerator.ts';
 import { isTemporaryWorldObject } from './TemporaryWorldObject.ts';
@@ -18,6 +19,7 @@ export class World {
   private readonly chunkManager: ChunkManager;
   private readonly objectManager: WorldObjectManager;
   private readonly temporaryObjectSystem: TemporaryObjectSystem;
+  private readonly destroyedNaturalObjectRegistry: DestroyedNaturalObjectRegistry;
   private worldTime: number = 0;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
@@ -25,6 +27,7 @@ export class World {
     this.chunkManager = new ChunkManager(this.worldGenerator);
     this.objectManager = new WorldObjectManager();
     this.temporaryObjectSystem = new TemporaryObjectSystem(this.worldTime);
+    this.destroyedNaturalObjectRegistry = new DestroyedNaturalObjectRegistry();
 
     // Integrar o ciclo de vida do WorldObjectManager com o TemporaryObjectSystem
     this.objectManager.setListener({
@@ -40,11 +43,14 @@ export class World {
 
     // Sincronizar o ciclo de vida dos chunks do terreno com o WorldObjectManager:
     // Apenas objetos procedurais naturais gerados pelo seed do terreno entram e saem na carga/descarga de chunks.
+    // Objetos marcados no DestroyedNaturalObjectRegistry são permanentemente ignorados e NÃO rematerializados.
     // Entidades dinâmicas (drops, baús, construções) permanecem no WorldObjectManager com autoridade independente.
     this.chunkManager.setLifecycleListener({
       onChunkLoaded: (chunk: Chunk) => {
         for (const obj of chunk.getNaturalObjects()) {
-          this.objectManager.addObject(obj);
+          if (!this.destroyedNaturalObjectRegistry.isDestroyedObject(obj)) {
+            this.objectManager.addObject(obj);
+          }
         }
       },
       onChunkUnloaded: (chunk: Chunk) => {
@@ -89,6 +95,21 @@ export class World {
    */
   public getTemporaryObjectSystem(): TemporaryObjectSystem {
     return this.temporaryObjectSystem;
+  }
+
+  /**
+   * Retorna o registro de objetos naturais destruídos permanentemente.
+   */
+  public getDestroyedNaturalObjectRegistry(): DestroyedNaturalObjectRegistry {
+    return this.destroyedNaturalObjectRegistry;
+  }
+
+  /**
+   * Consulta rápida se um objeto natural com o ID fornecido está destruído.
+   * Não materializa chunks.
+   */
+  public isNaturalObjectDestroyed(objectId: string): boolean {
+    return this.destroyedNaturalObjectRegistry.isDestroyed(objectId);
   }
 
   public getSeed(): number {

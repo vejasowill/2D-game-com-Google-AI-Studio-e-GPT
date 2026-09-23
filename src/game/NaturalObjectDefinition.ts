@@ -53,6 +53,19 @@ export interface NaturalObject extends WorldObject {
 }
 
 /**
+ * Type guard para determinar se um WorldObject é um NaturalObject procedural.
+ */
+export function isNaturalObject(obj: unknown): obj is NaturalObject {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'naturalType' in obj &&
+    'sourceTileX' in obj &&
+    'sourceTileY' in obj
+  );
+}
+
+/**
  * Registro determinístico das definições de objetos naturais por bioma.
  */
 export const NATURAL_OBJECT_DEFINITIONS: Record<NaturalObjectType, NaturalObjectDefinition> = {

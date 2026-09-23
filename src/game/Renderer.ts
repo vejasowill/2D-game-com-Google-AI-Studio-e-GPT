@@ -204,12 +204,10 @@ export class Renderer {
 
     switch (obj.type) {
       case 'tree': {
-        const isChopped = (obj.state as { chopped?: boolean } | undefined)?.chopped === true;
-
         // 1. Tenta renderizar via Spritesheet registrado no AssetManager (extensão limpa para artes futuras)
         const treeSheet = AssetManager.getInstance().getSpriteSheet('tree');
         if (treeSheet && treeSheet.imageSource) {
-          const frame = treeSheet.getFrame(isChopped ? 'stump' : 'intact') ?? treeSheet.getFrame('idle');
+          const frame = treeSheet.getFrame('intact') ?? treeSheet.getFrame('idle');
           if (frame) {
             this.spriteRenderer.renderSprite(
               camera,
@@ -223,36 +221,6 @@ export class Renderer {
         }
 
         // 2. Fallback técnico vetorial procedural (estável, sem arte externa requerida)
-        if (isChopped) {
-          // Renderiza toco remanescente da árvore cortada
-          const trunkWidth = 10;
-          const trunkHeight = 8;
-          const trunkX = screenX + (width - trunkWidth) / 2;
-          const trunkY = screenY + height - trunkHeight;
-
-          // Sombra sob o toco
-          this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-          this.ctx.beginPath();
-          this.ctx.ellipse(screenX + width / 2, screenY + height - 1, trunkWidth / 2 + 2, 3, 0, 0, Math.PI * 2);
-          this.ctx.fill();
-
-          // Base cilíndrica do toco de madeira
-          this.ctx.fillStyle = '#6b4226';
-          this.ctx.fillRect(trunkX, trunkY, trunkWidth, trunkHeight);
-          this.ctx.strokeStyle = '#4a2c11';
-          this.ctx.lineWidth = 1;
-          this.ctx.strokeRect(trunkX + 0.5, trunkY + 0.5, trunkWidth - 1, trunkHeight - 1);
-
-          // Topo circular do corte com anéis de madeira exposta
-          this.ctx.fillStyle = '#d4a373';
-          this.ctx.beginPath();
-          this.ctx.ellipse(screenX + width / 2, trunkY, trunkWidth / 2, 2.5, 0, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.strokeStyle = '#8d5b4c';
-          this.ctx.stroke();
-          break;
-        }
-
         // Sombra sob a copa
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
         this.ctx.beginPath();

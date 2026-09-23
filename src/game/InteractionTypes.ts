@@ -59,6 +59,8 @@ export interface CreateObjectMutation {
 export interface RemoveObjectMutation {
   readonly type: 'remove_object';
   readonly objectId: string;
+  /** Indica se a remoção deve ser registrada como destruição permanente de objeto natural */
+  readonly permanent?: boolean;
 }
 
 /** Mutação para mover um WorldObject mantendo seus índices espaciais consistentes */
