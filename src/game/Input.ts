@@ -3,24 +3,25 @@ import { InputSource, Vector2D } from './types.ts';
 export class Input implements InputSource {
   private activeKeys: Set<string> = new Set();
   private justPressedKeys: Set<string> = new Set();
+  private touchMovement: Vector2D = { x: 0, y: 0 };
   private handleKeyDown: (event: KeyboardEvent) => void;
   private handleKeyUp: (event: KeyboardEvent) => void;
   private handleWheel: (event: WheelEvent) => void;
 
   /** Mapeamento de ações abstratas para teclas físicas e lógicas */
   private actionBindings: Record<string, string[]> = {
-    interact: ['KeyE', 'e', 'Space', ' ', 'Enter'],
-    use_item: ['KeyF', 'f', 'KeyC', 'c', 'KeyJ', 'j'],
-    next_slot: ['BracketRight', ']', 'KeyX'],
-    prev_slot: ['BracketLeft', '[', 'KeyZ'],
-    slot_1: ['Digit1', '1', 'Numpad1'],
-    slot_2: ['Digit2', '2', 'Numpad2'],
-    slot_3: ['Digit3', '3', 'Numpad3'],
-    slot_4: ['Digit4', '4', 'Numpad4'],
-    slot_5: ['Digit5', '5', 'Numpad5'],
-    slot_6: ['Digit6', '6', 'Numpad6'],
-    slot_7: ['Digit7', '7', 'Numpad7'],
-    slot_8: ['Digit8', '8', 'Numpad8'],
+    interact: ['interact', 'KeyE', 'e', 'Space', ' ', 'Enter'],
+    use_item: ['use_item', 'KeyF', 'f', 'KeyC', 'c', 'KeyJ', 'j'],
+    next_slot: ['next_slot', 'BracketRight', ']', 'KeyX'],
+    prev_slot: ['prev_slot', 'BracketLeft', '[', 'KeyZ'],
+    slot_1: ['slot_1', 'Digit1', '1', 'Numpad1'],
+    slot_2: ['slot_2', 'Digit2', '2', 'Numpad2'],
+    slot_3: ['slot_3', 'Digit3', '3', 'Numpad3'],
+    slot_4: ['slot_4', 'Digit4', '4', 'Numpad4'],
+    slot_5: ['slot_5', 'Digit5', '5', 'Numpad5'],
+    slot_6: ['slot_6', 'Digit6', '6', 'Numpad6'],
+    slot_7: ['slot_7', 'Digit7', '7', 'Numpad7'],
+    slot_8: ['slot_8', 'Digit8', '8', 'Numpad8'],
   };
 
   constructor() {
@@ -81,7 +82,67 @@ export class Input implements InputSource {
   }
 
   /**
+   * Define o vetor de movimento do joystick touch (360 graus).
+   * Garante estritamente que a magnitude nunca exceda 1.0 (movimento diagonal e em qualquer ângulo normalizado).
+   */
+  public setTouchMovement(x: number, y: number): void {
+    if (x === 0 && y === 0) {
+      this.touchMovement = { x: 0, y: 0 };
+      return;
+    }
+    const length = Math.hypot(x, y);
+    if (length > 1) {
+      this.touchMovement = { x: x / length, y: y / length };
+    } else {
+      this.touchMovement = { x, y };
+    }
+  }
+
+  /**
+   * Retorna o vetor atual do joystick touch.
+   */
+  public getTouchMovement(): Vector2D {
+    return { ...this.touchMovement };
+  }
+
+  /**
+   * Zera o vetor de movimento do joystick touch.
+   */
+  public resetTouchMovement(): void {
+    this.touchMovement = { x: 0, y: 0 };
+  }
+
+  /**
+   * Dispara o início de uma ação abstrata via touch (ex: 'interact', 'use_item', 'slot_1').
+   * Registra como justPressed no frame inicial e mantém em activeKeys enquanto pressionado.
+   */
+  public triggerActionDown(action: string): void {
+    const keys = this.actionBindings[action] || [action];
+    const primaryKey = keys[0] || action;
+
+    if (!this.activeKeys.has(primaryKey) && !this.activeKeys.has(action)) {
+      this.justPressedKeys.add(primaryKey);
+      this.justPressedKeys.add(action);
+    }
+    this.activeKeys.add(primaryKey);
+    this.activeKeys.add(action);
+  }
+
+  /**
+   * Finaliza uma ação abstrata acionada via touch.
+   */
+  public triggerActionUp(action: string): void {
+    const keys = this.actionBindings[action] || [action];
+    for (const k of keys) {
+      this.activeKeys.delete(k);
+    }
+    this.activeKeys.delete(action);
+  }
+
+  /**
    * Retorna o vetor direcional normalizado da intenção de movimento.
+   * Unifica a entrada física do teclado com a entrada analógica do joystick virtual,
+   * garantindo que a magnitude combinada nunca exceda 1.0 e preservando normalização diagonal uniforme.
    */
   public getMovementDirection(): Vector2D {
     let dx = 0;
@@ -107,11 +168,27 @@ export class Input implements InputSource {
       dx += 1;
     }
 
-    // Normalização para movimento diagonal uniforme
+    // Normalização para movimento diagonal uniforme pelo teclado
     if (dx !== 0 && dy !== 0) {
       const length = Math.hypot(dx, dy);
       dx /= length;
       dy /= length;
+    }
+
+    // Integração unificada com o joystick virtual de toque
+    if (this.touchMovement.x !== 0 || this.touchMovement.y !== 0) {
+      if (dx === 0 && dy === 0) {
+        dx = this.touchMovement.x;
+        dy = this.touchMovement.y;
+      } else {
+        dx += this.touchMovement.x;
+        dy += this.touchMovement.y;
+        const totalLength = Math.hypot(dx, dy);
+        if (totalLength > 1) {
+          dx /= totalLength;
+          dy /= totalLength;
+        }
+      }
     }
 
     return { x: dx, y: dy };
@@ -179,5 +256,6 @@ export class Input implements InputSource {
     }
     this.activeKeys.clear();
     this.justPressedKeys.clear();
+    this.touchMovement = { x: 0, y: 0 };
   }
 }

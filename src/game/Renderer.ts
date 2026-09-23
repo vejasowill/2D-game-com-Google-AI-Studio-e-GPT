@@ -571,7 +571,7 @@ export class Renderer {
     const slotCount = hotbar.getSlotCount();
     const selectedSlot = hotbar.getSelectedSlotIndex();
 
-    const slotSize = 30;
+    const slotSize = 36;
     const gap = 4;
     const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
     const startX = Math.round((this.width - totalWidth) / 2);
@@ -636,8 +636,8 @@ export class Renderer {
               frame.sy,
               frame.sWidth,
               frame.sHeight,
-              slotX + 7,
-              slotY + 7,
+              slotX + 10,
+              slotY + 10,
               16,
               16,
             );
@@ -649,30 +649,30 @@ export class Renderer {
           // Miniatura técnica representativa por itemId (fallback procedural)
           if (stack.itemId === 'wood') {
             this.ctx.fillStyle = '#854d0e';
-            this.ctx.fillRect(slotX + 7, slotY + 10, 16, 10);
+            this.ctx.fillRect(slotX + 10, slotY + 13, 16, 10);
             this.ctx.fillStyle = '#a16207';
-            this.ctx.fillRect(slotX + 9, slotY + 12, 12, 2);
+            this.ctx.fillRect(slotX + 12, slotY + 15, 12, 2);
           } else if (stack.itemId === 'stone') {
             this.ctx.fillStyle = '#64748b';
-            this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
+            this.ctx.fillRect(slotX + 11, slotY + 11, 14, 14);
             this.ctx.fillStyle = '#94a3b8';
-            this.ctx.fillRect(slotX + 10, slotY + 10, 10, 3);
+            this.ctx.fillRect(slotX + 13, slotY + 13, 10, 3);
           } else if (stack.itemId === 'flower') {
             this.ctx.fillStyle = '#f43f5e';
-            this.ctx.fillRect(slotX + 9, slotY + 8, 12, 12);
+            this.ctx.fillRect(slotX + 12, slotY + 11, 12, 12);
             this.ctx.fillStyle = '#fbbf24';
-            this.ctx.fillRect(slotX + 12, slotY + 11, 6, 6);
+            this.ctx.fillRect(slotX + 15, slotY + 14, 6, 6);
           } else if (stack.itemId === 'axe') {
             // Machado na barra de atalhos
             this.ctx.fillStyle = '#92400e';
-            this.ctx.fillRect(slotX + 13, slotY + 8, 3, 14);
+            this.ctx.fillRect(slotX + 16, slotY + 11, 3, 14);
             this.ctx.fillStyle = '#94a3b8';
-            this.ctx.fillRect(slotX + 15, slotY + 8, 6, 6);
+            this.ctx.fillRect(slotX + 18, slotY + 11, 6, 6);
             this.ctx.fillStyle = '#e2e8f0';
-            this.ctx.fillRect(slotX + 19, slotY + 8, 2, 6);
+            this.ctx.fillRect(slotX + 22, slotY + 11, 2, 6);
           } else {
             this.ctx.fillStyle = '#d97706';
-            this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);
+            this.ctx.fillRect(slotX + 11, slotY + 11, 14, 14);
           }
         }
 
@@ -696,22 +696,30 @@ export class Renderer {
    */
   public getHotbarSlotAt(screenX: number, screenY: number, player: Player): number | null {
     const slotCount = player.hotbar.getSlotCount();
-    const slotSize = 30;
+    const slotSize = 36;
     const gap = 4;
     const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
     const startX = Math.round((this.width - totalWidth) / 2);
     const startY = this.height - slotSize - 12;
 
+    // Tolerância vertical generosa para toque em dispositivos móveis (dedo humano)
+    const verticalPadding = 8;
+    if (screenY < startY - verticalPadding || screenY > startY + slotSize + verticalPadding) {
+      return null;
+    }
+
+    // Tolerância horizontal nas pontas
+    if (screenX < startX - 6 || screenX > startX + totalWidth + 6) {
+      return null;
+    }
+
+    // Mapeamento determinístico de cada slot dividindo o vão (gap) central
     for (let i = 0; i < slotCount; i++) {
       const slotX = startX + i * (slotSize + gap);
-      const slotY = startY;
+      const leftBoundary = i === 0 ? slotX - 6 : slotX - gap / 2;
+      const rightBoundary = i === slotCount - 1 ? slotX + slotSize + 6 : slotX + slotSize + gap / 2;
 
-      if (
-        screenX >= slotX &&
-        screenX <= slotX + slotSize &&
-        screenY >= slotY &&
-        screenY <= slotY + slotSize
-      ) {
+      if (screenX >= leftBoundary && screenX <= rightBoundary) {
         return i;
       }
     }

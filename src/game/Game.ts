@@ -96,6 +96,14 @@ export class Game {
     return this.itemUseSystem;
   }
 
+  public getInput(): Input {
+    return this.input;
+  }
+
+  public getRenderer(): Renderer {
+    return this.renderer;
+  }
+
   public getWorld(): World {
     return this.world;
   }
@@ -193,8 +201,9 @@ export class Game {
       const rect = canvas.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
 
-      const screenX = (event.clientX - rect.left) * (canvas.width / rect.width);
-      const screenY = (event.clientY - rect.top) * (canvas.height / rect.height);
+      const viewport = this.renderer.getViewportSize();
+      const screenX = (event.clientX - rect.left) * (viewport.width / rect.width);
+      const screenY = (event.clientY - rect.top) * (viewport.height / rect.height);
       const clickedSlot = this.renderer.getHotbarSlotAt(screenX, screenY, this.player);
 
       if (clickedSlot !== null) {
