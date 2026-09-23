@@ -56,7 +56,16 @@ export class WorldMutationHandler {
       }
 
       case 'modify_tile': {
-        return world.applyTileModification(mutation.tileX, mutation.tileY, mutation.newTileType);
+        return world.applyTileModification(
+          mutation.tileX,
+          mutation.tileY,
+          mutation.newTileType,
+          mutation.previousTileType,
+        );
+      }
+
+      case 'restore_tile': {
+        return world.restoreTileModification(mutation.tileX, mutation.tileY);
       }
 
       default: {

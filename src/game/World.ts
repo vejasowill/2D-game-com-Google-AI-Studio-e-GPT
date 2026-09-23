@@ -305,7 +305,7 @@ export class World {
    * Se o chunk correspondente estiver carregado na memória, atualiza seu estado sem forçar
    * a geração de chunks ainda não carregados.
    */
-  public applyTileModification(tileX: number, tileY: number, type: TileType): boolean {
+  public applyTileModification(tileX: number, tileY: number, type: TileType, previousType?: TileType): boolean {
     if (!this.isValidTileCoord(tileX, tileY)) {
       return false;
     }
@@ -313,12 +313,48 @@ export class World {
       tileX,
       tileY,
       type,
+      previousType,
       modifiedAt: this.worldTime,
     });
     const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
     const loadedChunk = this.chunkManager.getLoadedChunk(chunkCoord.chunkX, chunkCoord.chunkY);
     if (loadedChunk) {
       loadedChunk.setTile(localX, localY, type);
+    }
+    return true;
+  }
+
+  /**
+   * Restaura uma modificação de terreno realizada pelo jogador, retornando a célula ao seu estado anterior.
+   * Se o estado restaurado for idêntico ao terreno procedural natural, remove a modificação para liberar memória;
+   * caso contrário, preserva a modificação prévia para garantir consistência mesmo após unload/reload.
+   */
+  public restoreTileModification(tileX: number, tileY: number): boolean {
+    if (!this.isValidTileCoord(tileX, tileY)) {
+      return false;
+    }
+    const modification = this.tileModificationRegistry.getModification(tileX, tileY);
+    if (!modification) {
+      return false;
+    }
+    const proceduralType = this.worldGenerator.getTileTypeAt(tileX, tileY);
+    const restoredType = modification.previousType ?? proceduralType;
+
+    if (restoredType === proceduralType) {
+      this.tileModificationRegistry.removeModification(tileX, tileY);
+    } else {
+      this.tileModificationRegistry.registerModification({
+        tileX,
+        tileY,
+        type: restoredType,
+        modifiedAt: this.worldTime,
+      });
+    }
+
+    const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
+    const loadedChunk = this.chunkManager.getLoadedChunk(chunkCoord.chunkX, chunkCoord.chunkY);
+    if (loadedChunk) {
+      loadedChunk.setTile(localX, localY, restoredType);
     }
     return true;
   }

@@ -9,6 +9,7 @@ import { ItemRegistry } from './ItemRegistry.ts';
 import { createItemStack } from './ItemStack.ts';
 import { ItemUseSystem } from './ItemUseSystem.ts';
 import { PlaceTileSystem } from './PlaceTileSystem.ts';
+import { BreakTileSystem } from './BreakTileSystem.ts';
 import { PlaceableTileRegistry } from './PlaceableTileRegistry.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
@@ -26,6 +27,7 @@ export class Game {
   private interactionSystem: InteractionSystem;
   private itemUseSystem: ItemUseSystem;
   private placeTileSystem: PlaceTileSystem;
+  private breakTileSystem: BreakTileSystem;
   private tileSelectionSystem: TileSelectionSystem;
   private renderer: Renderer;
   private loop: GameLoop;
@@ -60,6 +62,7 @@ export class Game {
     this.interactionSystem = new InteractionSystem();
     this.itemUseSystem = new ItemUseSystem();
     this.placeTileSystem = new PlaceTileSystem();
+    this.breakTileSystem = new BreakTileSystem();
     this.tileSelectionSystem = new TileSelectionSystem();
 
     PlaceableTileRegistry.ensureInitialized();
@@ -129,6 +132,10 @@ export class Game {
     return this.placeTileSystem;
   }
 
+  public getBreakTileSystem(): BreakTileSystem {
+    return this.breakTileSystem;
+  }
+
   public start(): void {
     this.loop.start();
   }
@@ -182,6 +189,15 @@ export class Game {
 
     // 6.5. Executar o sistema genérico de colocação de blocos (PLACE)
     this.placeTileSystem.update(
+      this.player,
+      this.world,
+      this.input,
+      this.tileSelectionSystem,
+      deltaTime,
+    );
+
+    // 6.6. Executar o sistema genérico de quebra/remoção de blocos colocados (BREAK)
+    this.breakTileSystem.update(
       this.player,
       this.world,
       this.input,

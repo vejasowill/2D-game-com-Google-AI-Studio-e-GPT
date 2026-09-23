@@ -87,6 +87,13 @@ export interface ModifyTileMutation {
   readonly previousTileType?: TileType;
 }
 
+/** Mutação declarativa para restaurar o terreno de uma célula global ao seu estado anterior registrado */
+export interface RestoreTileMutation {
+  readonly type: 'restore_tile';
+  readonly tileX: number;
+  readonly tileY: number;
+}
+
 /**
  * União discriminada de todas as mutações possíveis no estado dos objetos do mundo.
  * O executor aplica essas mutações através do WorldObjectManager preservando o particionamento espacial.
@@ -96,7 +103,8 @@ export type WorldMutation =
   | RemoveObjectMutation
   | UpdatePositionMutation
   | UpdateStateMutation
-  | ModifyTileMutation;
+  | ModifyTileMutation
+  | RestoreTileMutation;
 
 /**
  * Estrutura extensível de resultado da execução de uma interação.

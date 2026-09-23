@@ -8,6 +8,7 @@ export interface TileModification {
   readonly tileX: number;
   readonly tileY: number;
   readonly type: TileType;
+  readonly previousType?: TileType;
   readonly modifiedAt?: number;
 }
 
@@ -59,11 +60,15 @@ export class TileModificationRegistry {
     const chunkY = Math.floor(tileY / CHUNK_SIZE);
     const chunkKey = TileModificationRegistry.createChunkKey(chunkX, chunkY);
 
+    const existingMod = this.modifications.get(coordKey);
+    const previousType = modification.previousType ?? existingMod?.previousType;
+
     // Salva ou sobrescreve no mapa principal
     this.modifications.set(coordKey, {
       tileX,
       tileY,
       type: modification.type,
+      previousType,
       modifiedAt: modification.modifiedAt,
     });
 

@@ -107,6 +107,29 @@ export class Inventory {
   }
 
   /**
+   * Avalia de forma pura e determinística se o inventário possui capacidade de acomodar
+   * determinada quantidade de um item, sem modificar nenhum slot.
+   */
+  public canAddItem(itemId: string, quantity: number = 1): boolean {
+    if (!itemId || !Number.isInteger(quantity) || quantity <= 0) {
+      return false;
+    }
+    const maxStack = this.getMaxStackSize(itemId);
+    let needed = quantity;
+
+    for (let i = 0; i < this.slotCount; i++) {
+      if (needed <= 0) return true;
+      const slot = this.slots[i];
+      if (slot === null) {
+        needed -= maxStack;
+      } else if (slot.itemId === itemId && slot.quantity < maxStack) {
+        needed -= (maxStack - slot.quantity);
+      }
+    }
+    return needed <= 0;
+  }
+
+  /**
    * Adiciona um ItemStack ao inventário respeitando a estratégia de empilhamento:
    * 1. Preenche primeiro stacks já existentes do mesmo item;
    * 2. Em seguida, aloca em slots vazios;

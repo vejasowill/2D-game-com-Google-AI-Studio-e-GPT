@@ -158,11 +158,11 @@ export function MobileControls({ input }: MobileControlsProps) {
   );
 
   // =========================================================================
-  // BOTÕES DE AÇÃO: INTERACT, USE_ITEM & PLACE
+  // BOTÕES DE AÇÃO: INTERACT, USE_ITEM, PLACE & BREAK
   // =========================================================================
 
   const handleActionDown = useCallback(
-    (action: 'interact' | 'use_item' | 'place', e: React.PointerEvent) => {
+    (action: 'interact' | 'use_item' | 'place' | 'break', e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!input) return;
@@ -172,7 +172,7 @@ export function MobileControls({ input }: MobileControlsProps) {
   );
 
   const handleActionUp = useCallback(
-    (action: 'interact' | 'use_item' | 'place', e: React.PointerEvent) => {
+    (action: 'interact' | 'use_item' | 'place' | 'break', e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!input) return;
@@ -247,8 +247,26 @@ export function MobileControls({ input }: MobileControlsProps) {
         </div>
       </div>
 
-      {/* 3. BOTÕES DE AÇÃO SEPARADOS: PLACE, INTERACT & USE ITEM (Lado Direito Inferior) */}
+      {/* 3. BOTÕES DE AÇÃO SEPARADOS: BREAK, PLACE, INTERACT & USE ITEM (Lado Direito Inferior) */}
       <div className="absolute bottom-4 right-4 pointer-events-auto touch-none select-none z-30 flex items-end gap-3">
+        {/* BOTÃO BREAK (Quebra/remoção do bloco modificado pelo jogador no tile selecionado) */}
+        <div className="flex flex-col items-center">
+          <button
+            type="button"
+            aria-label="Quebrar Bloco"
+            onPointerDown={(e) => handleActionDown('break', e)}
+            onPointerUp={(e) => handleActionUp('break', e)}
+            onPointerCancel={(e) => handleActionUp('break', e)}
+            className="w-13 h-13 rounded-full bg-rose-950/80 hover:bg-rose-900/90 active:bg-rose-700 active:scale-95 border-2 border-rose-500/80 active:border-rose-300 text-rose-200 active:text-white shadow-lg flex flex-col items-center justify-center touch-manipulation cursor-pointer transition-all"
+          >
+            <span className="text-base font-black leading-none">X</span>
+            <span className="text-[8px] font-mono tracking-tighter uppercase mt-0.5">Remover</span>
+          </button>
+          <span className="text-[9px] font-mono text-rose-400/80 mt-1 uppercase tracking-wider font-semibold">
+            Quebrar
+          </span>
+        </div>
+
         {/* BOTÃO PLACE (Colocação do bloco associado ao item equipado no tile selecionado) */}
         <div className="flex flex-col items-center">
           <button

@@ -29,6 +29,7 @@ export const WOODEN_FLOOR_PLACEABLE: PlaceableTileDefinition = Object.freeze({
 export class PlaceableTileRegistry {
   private static readonly byId: Map<string, PlaceableTileDefinition> = new Map();
   private static readonly byItemId: Map<string, PlaceableTileDefinition> = new Map();
+  private static readonly byResultingTileType: Map<TileType, PlaceableTileDefinition> = new Map();
   private static isInitialized = false;
 
   public static ensureInitialized(): void {
@@ -41,13 +42,18 @@ export class PlaceableTileRegistry {
 
   /**
    * Registra uma nova definição de bloco colocável.
+   * Rejeita IDs duplicados de forma determinística.
    */
   public static register(definition: PlaceableTileDefinition): void {
     if (!definition || !definition.id || !definition.requiredItemId) {
       throw new Error('[PlaceableTileRegistry] Definição de bloco inválida.');
     }
+    if (this.byId.has(definition.id)) {
+      throw new Error(`[PlaceableTileRegistry] Definição com ID '${definition.id}' já foi registrada anteriormente.`);
+    }
     this.byId.set(definition.id, definition);
     this.byItemId.set(definition.requiredItemId, definition);
+    this.byResultingTileType.set(definition.resultingTileType, definition);
   }
 
   /**
@@ -64,6 +70,14 @@ export class PlaceableTileRegistry {
   public static getByItemId(itemId: string): PlaceableTileDefinition | null {
     this.ensureInitialized();
     return this.byItemId.get(itemId) || null;
+  }
+
+  /**
+   * Consulta a definição de bloco colocável associada a determinado tipo de terreno resultante.
+   */
+  public static getByResultingTileType(tileType: TileType): PlaceableTileDefinition | null {
+    this.ensureInitialized();
+    return this.byResultingTileType.get(tileType) || null;
   }
 
   /**
@@ -88,6 +102,7 @@ export class PlaceableTileRegistry {
   public static clear(): void {
     this.byId.clear();
     this.byItemId.clear();
+    this.byResultingTileType.clear();
     this.isInitialized = false;
   }
 }

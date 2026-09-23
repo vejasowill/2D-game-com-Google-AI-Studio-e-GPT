@@ -242,7 +242,25 @@ export class PlaceTileSystem {
     const requiredQty = definition.requiredQuantity ?? 1;
     const selectedSlotIndex = player.getHotbar().getSelectedSlotIndex();
 
-    // 2. Construir mutação declarativa de mundo
+    // 2. Garantir deterministicamente que o item necessário está disponível no slot antes de qualquer mutação
+    const currentSlot = player.getInventory().getSlot(selectedSlotIndex);
+    if (!currentSlot || currentSlot.itemId !== definition.requiredItemId || currentSlot.quantity < requiredQty) {
+      const errorResult: PlaceTileResult = {
+        success: false,
+        tileX,
+        tileY,
+        definition,
+        previousTileType: currentEffectiveTile.type,
+        failureReason: 'INSUFFICIENT_QUANTITY',
+      };
+      this.lastResult = errorResult;
+      if (this.onPlaceTile) {
+        this.onPlaceTile(errorResult);
+      }
+      return errorResult;
+    }
+
+    // 3. Construir mutação declarativa de mundo
     const mutation: ModifyTileMutation = {
       type: 'modify_tile',
       tileX,
@@ -251,7 +269,7 @@ export class PlaceTileSystem {
       previousTileType: currentEffectiveTile.type,
     };
 
-    // 3. Aplicar mutação através do WorldMutationHandler (preserva a cadeia arquitetural única)
+    // 4. Aplicar mutação através do WorldMutationHandler (preserva a cadeia arquitetural única)
     const applied = WorldMutationHandler.applyMutation(world, mutation);
     if (!applied) {
       const errorResult: PlaceTileResult = {
@@ -269,9 +287,31 @@ export class PlaceTileSystem {
       return errorResult;
     }
 
-    // 4. Consumir exatamente a quantidade necessária do slot equipado no inventário
+    // 5. Consumir exatamente a quantidade necessária do slot equipado no inventário
     // Se a quantidade restante for zero, o inventário limpa o slot para null automaticamente
-    player.getInventory().removeSlotItem(selectedSlotIndex, requiredQty);
+    const removeResult = player.getInventory().removeSlotItem(selectedSlotIndex, requiredQty);
+    if (!removeResult.removedStack || removeResult.removedStack.quantity !== requiredQty) {
+      // Mecanismo seguro de consistência: se o consumo falhar, restaura o mundo para evitar estado parcial
+      WorldMutationHandler.applyMutation(world, {
+        type: 'restore_tile',
+        tileX,
+        tileY,
+      });
+
+      const errorResult: PlaceTileResult = {
+        success: false,
+        tileX,
+        tileY,
+        definition,
+        previousTileType: currentEffectiveTile.type,
+        failureReason: 'INSUFFICIENT_QUANTITY',
+      };
+      this.lastResult = errorResult;
+      if (this.onPlaceTile) {
+        this.onPlaceTile(errorResult);
+      }
+      return errorResult;
+    }
 
     const successResult: PlaceTileResult = {
       success: true,
