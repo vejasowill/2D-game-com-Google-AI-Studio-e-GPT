@@ -53,6 +53,12 @@ export class BiomeVisualRegistry {
       borderColor: '#09090b',
     });
 
+    // Fallback para piso de madeira em qualquer bioma
+    this.registerFallback(TileType.WOOD_FLOOR, {
+      color: '#854d0e',
+      borderColor: '#713f12',
+    });
+
     // 2. PLAINS (Planície temperada / pradaria)
     // Verde claro natural com contorno de grama equilibrada
     this.register(Biome.PLAINS, TileType.GRASS, {
@@ -128,6 +134,9 @@ export class BiomeVisualRegistry {
     }
     if (tileType === TileType.EMPTY) {
       return { color: '#18181b', borderColor: '#09090b' };
+    }
+    if (tileType === TileType.WOOD_FLOOR) {
+      return { color: '#854d0e', borderColor: '#713f12' };
     }
     return { color: '#2e7d32', borderColor: '#256629' };
   }

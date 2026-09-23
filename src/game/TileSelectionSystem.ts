@@ -45,6 +45,13 @@ export class TileSelectionSystem {
   }
 
   /**
+   * Alias de conveniência para definir o tile selecionado.
+   */
+  public setSelectedTile(tileCoord: TileCoord | null): void {
+    this.selectTile(tileCoord);
+  }
+
+  /**
    * Retorna a coordenada do tile selecionado atualmente, ou null se não houver seleção.
    */
   public getSelectedTile(): TileCoord | null {

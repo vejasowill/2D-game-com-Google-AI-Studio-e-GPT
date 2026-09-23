@@ -158,11 +158,11 @@ export function MobileControls({ input }: MobileControlsProps) {
   );
 
   // =========================================================================
-  // BOTÕES DE AÇÃO: INTERACT & USE_ITEM
+  // BOTÕES DE AÇÃO: INTERACT, USE_ITEM & PLACE
   // =========================================================================
 
   const handleActionDown = useCallback(
-    (action: 'interact' | 'use_item', e: React.PointerEvent) => {
+    (action: 'interact' | 'use_item' | 'place', e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!input) return;
@@ -172,7 +172,7 @@ export function MobileControls({ input }: MobileControlsProps) {
   );
 
   const handleActionUp = useCallback(
-    (action: 'interact' | 'use_item', e: React.PointerEvent) => {
+    (action: 'interact' | 'use_item' | 'place', e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!input) return;
@@ -247,8 +247,26 @@ export function MobileControls({ input }: MobileControlsProps) {
         </div>
       </div>
 
-      {/* 3. BOTÕES DE AÇÃO SEPARADOS: USE ITEM & INTERACT (Lado Direito Inferior) */}
-      <div className="absolute bottom-4 right-4 pointer-events-auto touch-none select-none z-30 flex items-end gap-3.5">
+      {/* 3. BOTÕES DE AÇÃO SEPARADOS: PLACE, INTERACT & USE ITEM (Lado Direito Inferior) */}
+      <div className="absolute bottom-4 right-4 pointer-events-auto touch-none select-none z-30 flex items-end gap-3">
+        {/* BOTÃO PLACE (Colocação do bloco associado ao item equipado no tile selecionado) */}
+        <div className="flex flex-col items-center">
+          <button
+            type="button"
+            aria-label="Colocar Bloco"
+            onPointerDown={(e) => handleActionDown('place', e)}
+            onPointerUp={(e) => handleActionUp('place', e)}
+            onPointerCancel={(e) => handleActionUp('place', e)}
+            className="w-13 h-13 rounded-full bg-indigo-950/80 hover:bg-indigo-900/90 active:bg-indigo-700 active:scale-95 border-2 border-indigo-500/80 active:border-indigo-300 text-indigo-200 active:text-white shadow-lg flex flex-col items-center justify-center touch-manipulation cursor-pointer transition-all"
+          >
+            <span className="text-base font-black leading-none">Q</span>
+            <span className="text-[8px] font-mono tracking-tighter uppercase mt-0.5">Bloco</span>
+          </button>
+          <span className="text-[9px] font-mono text-indigo-400/80 mt-1 uppercase tracking-wider font-semibold">
+            Colocar
+          </span>
+        </div>
+
         {/* BOTÃO INTERACT (Interação genérica de mundo: Sacudir árvore, Coletar drop) */}
         <div className="flex flex-col items-center">
           <button

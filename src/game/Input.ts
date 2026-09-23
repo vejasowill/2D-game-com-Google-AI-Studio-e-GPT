@@ -10,6 +10,7 @@ export class Input implements InputSource {
 
   /** Mapeamento de ações abstratas para teclas físicas e lógicas */
   private actionBindings: Record<string, string[]> = {
+    place: ['place', 'KeyQ', 'q'],
     interact: ['interact', 'KeyE', 'e', 'Space', ' ', 'Enter'],
     use_item: ['use_item', 'KeyF', 'f', 'KeyC', 'c', 'KeyJ', 'j'],
     next_slot: ['next_slot', 'BracketRight', ']', 'KeyX'],

@@ -8,6 +8,8 @@ import { InteractionSystem } from './InteractionSystem.ts';
 import { ItemRegistry } from './ItemRegistry.ts';
 import { createItemStack } from './ItemStack.ts';
 import { ItemUseSystem } from './ItemUseSystem.ts';
+import { PlaceTileSystem } from './PlaceTileSystem.ts';
+import { PlaceableTileRegistry } from './PlaceableTileRegistry.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -23,6 +25,7 @@ export class Game {
   private streamingSystem: ChunkStreamingSystem;
   private interactionSystem: InteractionSystem;
   private itemUseSystem: ItemUseSystem;
+  private placeTileSystem: PlaceTileSystem;
   private tileSelectionSystem: TileSelectionSystem;
   private renderer: Renderer;
   private loop: GameLoop;
@@ -53,10 +56,13 @@ export class Game {
     // Carga inicial dos chunks ao redor da posição de spawn do Player
     this.streamingSystem.forceUpdate(this.player.position);
 
-    // 5. Instanciar o sistema genérico de interação desacoplado, o sistema de uso de itens e a seleção de tiles
+    // 5. Instanciar o sistema genérico de interação desacoplado, o sistema de uso de itens, colocação de blocos e seleção de tiles
     this.interactionSystem = new InteractionSystem();
     this.itemUseSystem = new ItemUseSystem();
+    this.placeTileSystem = new PlaceTileSystem();
     this.tileSelectionSystem = new TileSelectionSystem();
+
+    PlaceableTileRegistry.ensureInitialized();
 
     // Adicionar um objeto interativo demonstrativo técnico e limpo (TestToggleObject) próximo ao spawn
     const demoToggleBeacon = new TestToggleObject(
@@ -119,6 +125,10 @@ export class Game {
     return this.tileSelectionSystem;
   }
 
+  public getPlaceTileSystem(): PlaceTileSystem {
+    return this.placeTileSystem;
+  }
+
   public start(): void {
     this.loop.start();
   }
@@ -169,6 +179,15 @@ export class Game {
 
     // 6. Executar o sistema genérico de uso de ferramentas e itens equipados
     this.itemUseSystem.update(this.player, this.world, this.input, deltaTime);
+
+    // 6.5. Executar o sistema genérico de colocação de blocos (PLACE)
+    this.placeTileSystem.update(
+      this.player,
+      this.world,
+      this.input,
+      this.tileSelectionSystem,
+      deltaTime,
+    );
 
     // 7. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
     this.input.clearFrameState();

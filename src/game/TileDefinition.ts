@@ -47,3 +47,16 @@ export const EMPTY_TILE_DEFINITION: TileDefinition = {
   borderColor: '#09090b',
 };
 
+/**
+ * Definição estática do tipo de terreno WOOD_FLOOR (assoalho/piso de madeira colocado).
+ * Caminhável por padrão com custo de movimento regular.
+ */
+export const WOOD_FLOOR_TILE_DEFINITION: TileDefinition = {
+  type: TileType.WOOD_FLOOR,
+  walkable: true,
+  movementCost: 1.0,
+  color: '#854d0e',
+  borderColor: '#713f12',
+};
+
+

@@ -2,6 +2,7 @@ export enum TileType {
   GRASS = 'GRASS',
   WATER = 'WATER',
   EMPTY = 'EMPTY',
+  WOOD_FLOOR = 'WOOD_FLOOR',
 }
 
 export type { TileDefinition } from './TileDefinition.ts';

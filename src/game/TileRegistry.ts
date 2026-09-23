@@ -3,6 +3,7 @@ import {
   GRASS_TILE_DEFINITION,
   TileDefinition,
   WATER_TILE_DEFINITION,
+  WOOD_FLOOR_TILE_DEFINITION,
 } from './TileDefinition.ts';
 import { TileType } from './types.ts';
 
@@ -23,6 +24,7 @@ export class TileRegistry {
     this.register(GRASS_TILE_DEFINITION);
     this.register(WATER_TILE_DEFINITION);
     this.register(EMPTY_TILE_DEFINITION);
+    this.register(WOOD_FLOOR_TILE_DEFINITION);
     this.isInitialized = true;
   }
 

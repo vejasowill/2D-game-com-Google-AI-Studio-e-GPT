@@ -74,6 +74,18 @@ export class Player {
     return this.equipment.getEquippedItem();
   }
 
+  public getInventory(): Inventory {
+    return this.inventory;
+  }
+
+  public getHotbar(): Hotbar {
+    return this.hotbar;
+  }
+
+  public getEquipment(): Equipment {
+    return this.equipment;
+  }
+
   /**
    * Retorna a referência direta ao ItemStack contido no slot ativo do inventário, ou null se vazio.
    */
