@@ -187,6 +187,21 @@ export class PlayerRenderer {
       this.ctx.fillRect(drawX - 3, drawY - 3, 6, 6);
       this.ctx.fillStyle = '#fbbf24';
       this.ctx.fillRect(drawX - 1, drawY - 1, 2, 2);
+    } else if (itemId === 'axe') {
+      // Machado com animação sutil de balanço quando ativo
+      const isSwing = player.isUsingItem;
+      const swingOffset = isSwing ? 3 : 0;
+      // Cabo de madeira
+      this.ctx.fillStyle = '#92400e';
+      this.ctx.fillRect(drawX - 1, drawY - 6 + swingOffset, 2, 10);
+      // Lâmina de ferro
+      this.ctx.fillStyle = '#94a3b8';
+      this.ctx.fillRect(drawX, drawY - 6 + swingOffset, 4, 4);
+      this.ctx.fillStyle = '#cbd5e1';
+      this.ctx.fillRect(drawX + 3, drawY - 6 + swingOffset, 1, 4);
+      this.ctx.strokeStyle = '#475569';
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(drawX - 0.5, drawY - 6.5 + swingOffset, 5, 5);
     } else {
       // Item genérico (ícone sutil)
       this.ctx.fillStyle = '#f59e0b';

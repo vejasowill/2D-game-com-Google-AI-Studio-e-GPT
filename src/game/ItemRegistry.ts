@@ -28,6 +28,20 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     spriteAssetId: 'item_flower',
     description: 'Pequena flor do campo aromática e decorativa.',
   },
+  {
+    id: 'axe',
+    name: 'Machado',
+    maxStackSize: 1,
+    category: 'tool',
+    spriteAssetId: 'item_axe',
+    description: 'Ferramenta de corte para obter madeira de árvores.',
+    useDefinition: {
+      action: 'chop',
+      range: 36,
+      cooldown: 0.4,
+      requiresTarget: true,
+    },
+  },
 ]);
 
 /**

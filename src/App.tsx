@@ -31,6 +31,13 @@ export default function App() {
         ref={canvasRef}
         className="block w-full h-full"
       />
+      <div className="absolute top-3 left-3 pointer-events-none bg-slate-900/85 backdrop-blur-xs border border-slate-700/60 rounded px-2.5 py-1.5 text-[11px] font-mono text-slate-300 shadow-md">
+        <div className="font-semibold text-amber-400 mb-0.5">Controles:</div>
+        <div>WASD / Setas: Mover</div>
+        <div>[E]: Interagir / Sacudir</div>
+        <div>[F]: Usar Ferramenta (Cortar)</div>
+        <div>1-8 / Clique: Selecionar Slot</div>
+      </div>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
 import { InteractionSystem } from './InteractionSystem.ts';
+import { ItemUseSystem } from './ItemUseSystem.ts';
 import { Player } from './Player.ts';
 import { PlayerRenderer } from './PlayerRenderer.ts';
 import { SpriteRenderer } from './SpriteRenderer.ts';
@@ -69,6 +70,7 @@ export class Renderer {
     camera: Camera,
     player: Player,
     interactionSystem?: InteractionSystem,
+    itemUseSystem?: ItemUseSystem,
   ): void {
     // 1. Limpar fundo escuro
     this.ctx.fillStyle = this.clearColor;
@@ -170,7 +172,13 @@ export class Renderer {
       interactionSystem.renderDebug(this.ctx, camera, viewport, player);
     }
 
-    // 5. Renderizar HUD técnico mínimo da Hotbar (barra de slots discretos com destaque de seleção)
+    // 5. Renderizar feedback e prompt de uso de itens/ferramentas se disponível
+    if (itemUseSystem) {
+      itemUseSystem.renderPrompt(this.ctx, camera, viewport, player);
+      itemUseSystem.renderFeedback(this.ctx, viewport);
+    }
+
+    // 6. Renderizar HUD técnico mínimo da Hotbar (barra de slots discretos com destaque de seleção)
     this.renderHotbar(player);
   }
 
@@ -195,6 +203,37 @@ export class Renderer {
 
     switch (obj.type) {
       case 'tree': {
+        const isChopped = (obj.state as { chopped?: boolean } | undefined)?.chopped === true;
+        if (isChopped) {
+          // Renderiza toco remanescente da árvore cortada
+          const trunkWidth = 10;
+          const trunkHeight = 8;
+          const trunkX = screenX + (width - trunkWidth) / 2;
+          const trunkY = screenY + height - trunkHeight;
+
+          // Sombra sob o toco
+          this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+          this.ctx.beginPath();
+          this.ctx.ellipse(screenX + width / 2, screenY + height - 1, trunkWidth / 2 + 2, 3, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Base cilíndrica do toco de madeira
+          this.ctx.fillStyle = '#6b4226';
+          this.ctx.fillRect(trunkX, trunkY, trunkWidth, trunkHeight);
+          this.ctx.strokeStyle = '#4a2c11';
+          this.ctx.lineWidth = 1;
+          this.ctx.strokeRect(trunkX + 0.5, trunkY + 0.5, trunkWidth - 1, trunkHeight - 1);
+
+          // Topo circular do corte com anéis de madeira exposta
+          this.ctx.fillStyle = '#d4a373';
+          this.ctx.beginPath();
+          this.ctx.ellipse(screenX + width / 2, trunkY, trunkWidth / 2, 2.5, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.strokeStyle = '#8d5b4c';
+          this.ctx.stroke();
+          break;
+        }
+
         // Sombra sob a copa
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
         this.ctx.beginPath();
@@ -553,6 +592,14 @@ export class Renderer {
           this.ctx.fillRect(slotX + 9, slotY + 8, 12, 12);
           this.ctx.fillStyle = '#fbbf24';
           this.ctx.fillRect(slotX + 12, slotY + 11, 6, 6);
+        } else if (stack.itemId === 'axe') {
+          // Machado na barra de atalhos
+          this.ctx.fillStyle = '#92400e';
+          this.ctx.fillRect(slotX + 13, slotY + 8, 3, 14);
+          this.ctx.fillStyle = '#94a3b8';
+          this.ctx.fillRect(slotX + 15, slotY + 8, 6, 6);
+          this.ctx.fillStyle = '#e2e8f0';
+          this.ctx.fillRect(slotX + 19, slotY + 8, 2, 6);
         } else {
           this.ctx.fillStyle = '#d97706';
           this.ctx.fillRect(slotX + 8, slotY + 8, 14, 14);

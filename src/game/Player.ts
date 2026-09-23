@@ -26,6 +26,8 @@ export class Player {
   public readonly size: number;
   public direction: PlayerDirection = PlayerDirection.DOWN;
   public isMoving: boolean = false;
+  public isUsingItem: boolean = false;
+  private useItemTimer: number = 0;
 
   /** Configuração das dimensões visuais e ancoragem gráfica (independente da hitbox física) */
   public visualConfig: PlayerVisualConfig = DEFAULT_PLAYER_VISUAL_CONFIG;
@@ -144,8 +146,24 @@ export class Player {
     // Avança a máquina de estados de animação determinística
     this.animationState.update(deltaTime, this.isMoving);
 
+    // Atualiza o estado transitório de uso de ferramenta
+    if (this.useItemTimer > 0) {
+      this.useItemTimer = Math.max(0, this.useItemTimer - deltaTime);
+      if (this.useItemTimer === 0) {
+        this.isUsingItem = false;
+      }
+    }
+
     // Processa a seleção rápida de slots da Hotbar a partir dos inputs do frame
     this.updateHotbar(input);
+  }
+
+  /**
+   * Sinaliza que o jogador iniciou o uso de um item por um período determinístico.
+   */
+  public setUsingItem(using: boolean, duration: number = 0.2): void {
+    this.isUsingItem = using;
+    this.useItemTimer = using ? Math.max(0, duration) : 0;
   }
 
   /**

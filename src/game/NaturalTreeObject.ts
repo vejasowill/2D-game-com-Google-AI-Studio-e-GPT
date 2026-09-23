@@ -6,20 +6,29 @@ import {
   InteractionResult,
   InteractiveWorldObject,
 } from './InteractionTypes.ts';
+import {
+  ItemActionTarget,
+  ItemUseContext,
+  ItemUseResult,
+} from './ItemUseTypes.ts';
 import { NaturalObject, NaturalObjectType } from './NaturalObjectDefinition.ts';
 import { WorldCoord } from './types.ts';
 
 /**
- * Objeto natural de árvore interativa que implementa a geração determinística de drops.
+ * Objeto natural de árvore interativa que implementa suporte tanto à interação
+ * básica ("Sacudir Árvore") quanto ao sistema genérico de ações de ferramentas ("chop").
  *
  * Princípios arquiteturais:
- * 1. Implementa NaturalObject e InteractiveWorldObject;
- * 2. Quando o jogador interage ("Sacudir Árvore"), gera deterministicamente um drop de madeira (ItemDropObject);
+ * 1. Implementa NaturalObject, InteractiveWorldObject e ItemActionTarget;
+ * 2. Quando o jogador usa uma ferramenta de corte ("chop"), gera deterministicamente um drop de madeira (ItemDropObject);
  * 3. Utiliza o sistema de mutação existente (WorldMutation: create_object e update_state);
- * 4. 100% determinístico: ID do drop derivado de (sourceTileX, sourceTileY) e quantidade fixa (sem Math.random());
- * 5. Não implementa ferramentas ou machados antecipadamente; serve como a primeira vertical slice.
+ * 4. 100% determinístico: ID do drop derivado de (sourceTileX, sourceTileY) e quantidade estável (sem Math.random());
+ * 5. Rejeita ações incompatíveis e impede duplicação caso já esteja cortada;
+ * 6. Totalmente desacoplado de IDs concretos de ferramentas (comunica-se apenas pela ação abstrata 'chop').
  */
-export class NaturalTreeObject implements NaturalObject, InteractiveWorldObject {
+export class NaturalTreeObject
+  implements NaturalObject, InteractiveWorldObject, ItemActionTarget
+{
   public readonly id: string;
   public readonly type: string = 'tree';
   public position: WorldCoord;
@@ -58,17 +67,33 @@ export class NaturalTreeObject implements NaturalObject, InteractiveWorldObject 
     this.sourceTileX = sourceTileX;
     this.sourceTileY = sourceTileY;
     this.variant = variant;
-    this.state = state ?? Object.freeze({ harvested: false });
+    this.state = state ?? Object.freeze({ harvested: false, chopped: false });
+  }
+
+  public get isChopped(): boolean {
+    return (this.state as { chopped?: boolean } | undefined)?.chopped === true;
+  }
+
+  public get isHarvested(): boolean {
+    return (this.state as { harvested?: boolean } | undefined)?.harvested === true;
   }
 
   public canInteract(): boolean {
-    return true;
+    // Se a árvore já foi cortada (toco remanescente), não exibe prompt de sacudir
+    return !this.isChopped;
   }
 
   public interact(context: InteractionContext): InteractionResult {
-    const isHarvested = (this.state as { harvested?: boolean } | undefined)?.harvested === true;
+    if (this.isChopped) {
+      return {
+        success: false,
+        interactionId: this.interaction.id,
+        actionLabel: this.interaction.label,
+        message: 'Esta árvore já foi cortada.',
+      };
+    }
 
-    if (isHarvested) {
+    if (this.isHarvested) {
       return {
         success: true,
         interactionId: this.interaction.id,
@@ -98,6 +123,76 @@ export class NaturalTreeObject implements NaturalObject, InteractiveWorldObject 
       actionLabel: this.interaction.label,
       message: 'Galhos de madeira caíram no chão!',
       statePatch: { harvested: true },
+      mutations: [
+        {
+          type: 'create_object',
+          object: woodDrop,
+        },
+      ],
+    };
+  }
+
+  /**
+   * Contrato ItemActionTarget:
+   * Valida se a árvore aceita a ação solicitada.
+   * Aceita exclusivamente a ação 'chop' se a árvore ainda não tiver sido cortada.
+   */
+  public canReceiveAction(action: string, _context?: ItemUseContext): boolean {
+    if (action !== 'chop') {
+      return false;
+    }
+    return !this.isChopped;
+  }
+
+  /**
+   * Contrato ItemActionTarget:
+   * Executa o corte da árvore pelo machado/ferramenta:
+   * 1. Valida se a ação é compatível ('chop');
+   * 2. Impede produção duplicada se já estiver cortada;
+   * 3. Produz um ItemDropObject de madeira de maneira 100% determinística;
+   * 4. Retorna mutação create_object e patch de estado { chopped: true }.
+   */
+  public receiveAction(action: string, context: ItemUseContext): ItemUseResult {
+    if (action !== 'chop') {
+      return {
+        success: false,
+        action,
+        code: 'incompatible_action',
+        message: 'Esta ferramenta não afeta esta árvore.',
+      };
+    }
+
+    if (this.isChopped) {
+      return {
+        success: false,
+        action,
+        code: 'already_chopped',
+        message: 'Esta árvore já foi cortada.',
+      };
+    }
+
+    // Posição física contínua e determinística para o drop próximo à base da árvore
+    const dropX = this.position.worldX + Math.floor(this.width / 2) - 8;
+    const dropY = this.position.worldY + this.height + 4;
+
+    // ID determinístico baseado nas coordenadas de origem do tile
+    const dropId = `drop:wood:chop:${this.sourceTileX}:${this.sourceTileY}`;
+    const woodDrop = new ItemDropObject(
+      dropId,
+      { worldX: dropX, worldY: dropY },
+      'wood',
+      3, // Quantidade de madeira fixa e determinística
+      16,
+      16,
+      context.world.getTime(),
+    );
+
+    return {
+      success: true,
+      action: 'chop',
+      code: 'tree_chopped',
+      message: 'Árvore cortada!',
+      statePatch: { chopped: true },
       mutations: [
         {
           type: 'create_object',

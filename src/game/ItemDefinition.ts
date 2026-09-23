@@ -1,3 +1,5 @@
+import { ItemUseDefinition } from './ItemUseTypes.ts';
+
 /**
  * Categoria genérica opcional de um item.
  * Utilizada para agrupamento lógico sem acoplamento a regras de gameplay.
@@ -10,14 +12,15 @@ export type ItemCategory = 'material' | 'flora' | 'consumable' | 'tool' | 'misc'
  * Princípios arquiteturais:
  * 1. Descreve as propriedades intrínsecas e estáveis do item, NÃO sua quantidade ou posição no mundo.
  * 2. NÃO herda de WorldObject nem possui coordenadas físicas.
- * 3. NÃO contém lógica de inventário, combate, ferramentas ou crafting.
+ * 3. NÃO contém lógica de inventário, combate, ferramentas ou crafting acoplada.
  * 4. spriteAssetId é uma referência simbólica que pode ou não ter um asset carregado no AssetManager.
+ * 5. useDefinition declara o comportamento de uso do item de forma genérica e extensível.
  */
 export interface ItemDefinition {
-  /** Identificador único, estável e canônico do item (ex: 'wood', 'stone', 'flower') */
+  /** Identificador único, estável e canônico do item (ex: 'wood', 'stone', 'flower', 'axe') */
   readonly id: string;
 
-  /** Nome amigável de exibição (ex: 'Madeira', 'Pedra') */
+  /** Nome amigável de exibição (ex: 'Madeira', 'Pedra', 'Machado') */
   readonly name: string;
 
   /** Quantidade máxima permitida em um único ItemStack (inteiro positivo > 0) */
@@ -31,6 +34,9 @@ export interface ItemDefinition {
 
   /** Descrição textual opcional */
   readonly description?: string;
+
+  /** Definição declarativa opcional do comportamento de uso deste item */
+  readonly useDefinition?: ItemUseDefinition;
 }
 
 /**

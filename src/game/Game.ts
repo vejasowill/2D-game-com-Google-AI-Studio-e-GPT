@@ -6,6 +6,8 @@ import { GameLoop } from './GameLoop.ts';
 import { Input } from './Input.ts';
 import { InteractionSystem } from './InteractionSystem.ts';
 import { ItemRegistry } from './ItemRegistry.ts';
+import { createItemStack } from './ItemStack.ts';
+import { ItemUseSystem } from './ItemUseSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -19,6 +21,7 @@ export class Game {
   private collisionSystem: CollisionSystem;
   private streamingSystem: ChunkStreamingSystem;
   private interactionSystem: InteractionSystem;
+  private itemUseSystem: ItemUseSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private canvas: HTMLCanvasElement;
@@ -40,14 +43,17 @@ export class Game {
     // 3. Obter a posição inicial segura para o Player sobre terreno caminhável próximo ao centro
     const initialPlayerPosition = this.world.getSafeSpawnWorldPosition(PLAYER_SIZE);
     this.player = new Player(initialPlayerPosition);
+    // Equipar machado inicial no primeiro slot para demonstrar uso de ferramentas
+    this.player.inventory.addItemStack(createItemStack('axe', 1));
 
     // 4. Instanciar o subsistema de streaming espacial de chunks ao redor do Player
     this.streamingSystem = new ChunkStreamingSystem(this.world);
     // Carga inicial dos chunks ao redor da posição de spawn do Player
     this.streamingSystem.forceUpdate(this.player.position);
 
-    // 5. Instanciar o sistema genérico de interação desacoplado
+    // 5. Instanciar o sistema genérico de interação desacoplado e o sistema de uso de itens
     this.interactionSystem = new InteractionSystem();
+    this.itemUseSystem = new ItemUseSystem();
 
     // Adicionar um objeto interativo demonstrativo técnico e limpo (TestToggleObject) próximo ao spawn
     const demoToggleBeacon = new TestToggleObject(
@@ -84,6 +90,10 @@ export class Game {
 
   public getInteractionSystem(): InteractionSystem {
     return this.interactionSystem;
+  }
+
+  public getItemUseSystem(): ItemUseSystem {
+    return this.itemUseSystem;
   }
 
   public getWorld(): World {
@@ -142,17 +152,26 @@ export class Game {
     // 5. Executar o sistema de interação (busca determinística e execução de ação discreta se acionada)
     this.interactionSystem.update(this.player, this.world, this.input, deltaTime);
 
-    // 6. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
+    // 6. Executar o sistema genérico de uso de ferramentas e itens equipados
+    this.itemUseSystem.update(this.player, this.world, this.input, deltaTime);
+
+    // 7. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
     this.input.clearFrameState();
 
-    // 7. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
+    // 8. Atualizar a Camera acompanhando a posição do Player no espaço infinito do mundo com suavização visual
     const playerCenter = this.player.getCenter();
     this.camera.follow(playerCenter.worldX, playerCenter.worldY, deltaTime);
   }
 
   private render(): void {
-    // Renderiza o mundo, o jogador e os prompts/debug de interação através da câmera no canvas
-    this.renderer.render(this.world, this.camera, this.player, this.interactionSystem);
+    // Renderiza o mundo, o jogador e os prompts/debug de interação e ferramentas através da câmera no canvas
+    this.renderer.render(
+      this.world,
+      this.camera,
+      this.player,
+      this.interactionSystem,
+      this.itemUseSystem,
+    );
   }
 
   private setupResize(canvas: HTMLCanvasElement): void {
