@@ -1,4 +1,9 @@
 import { DEFAULT_MAX_STACK_SIZE, ItemDefinition } from './ItemDefinition.ts';
+import {
+  DEFAULT_AXE_ENERGY_COST,
+  DEFAULT_HOE_ENERGY_COST,
+  DEFAULT_WATERING_CAN_ENERGY_COST,
+} from './constants.ts';
 
 /**
  * Definições técnicas padrão de itens para teste e bootstrapping inicial.
@@ -40,6 +45,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
       range: 36,
       cooldown: 0.4,
       requiresTarget: true,
+      energyCost: DEFAULT_AXE_ENERGY_COST,
     },
   },
   {
@@ -54,6 +60,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
       range: 48,
       cooldown: 0.35,
       requiresTarget: true,
+      energyCost: DEFAULT_HOE_ENERGY_COST,
     },
   },
   {
@@ -70,6 +77,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
       requiresTarget: true,
       targetDomain: 'tile',
       consumesItem: false,
+      energyCost: DEFAULT_WATERING_CAN_ENERGY_COST,
     },
   },
   {

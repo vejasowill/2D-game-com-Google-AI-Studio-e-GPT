@@ -17,3 +17,8 @@ export const DEFAULT_HOTBAR_SLOT_COUNT = 8; // Quantidade padrão de slots rápi
 
 export const DEFAULT_PLAYER_MAX_ENERGY = 100; // Quantidade padrão de energia máxima do jogador
 
+// Custos técnicos declarativos de energia padrão para ferramentas
+export const DEFAULT_AXE_ENERGY_COST = 10;
+export const DEFAULT_HOE_ENERGY_COST = 2;
+export const DEFAULT_WATERING_CAN_ENERGY_COST = 2;
+

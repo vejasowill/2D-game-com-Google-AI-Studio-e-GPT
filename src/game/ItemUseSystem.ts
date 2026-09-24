@@ -576,9 +576,10 @@ export class ItemUseSystem {
         success: false,
         action,
         code: 'insufficient_energy',
-        message: 'Energia insuficiente para realizar esta ação.',
+        message: 'Sem energia',
       };
       this.lastResult = result;
+      this.showFeedback('Sem energia');
       if (this.onItemUse) {
         this.onItemUse(result, null);
       }

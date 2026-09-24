@@ -1,4 +1,9 @@
 import { ToolDefinition } from './ToolDefinition.ts';
+import {
+  DEFAULT_AXE_ENERGY_COST,
+  DEFAULT_HOE_ENERGY_COST,
+  DEFAULT_WATERING_CAN_ENERGY_COST,
+} from './constants.ts';
 
 /**
  * Definições técnicas canônicas padrão de ferramentas para bootstrapping inicial.
@@ -16,6 +21,7 @@ export const DEFAULT_TECHNICAL_TOOLS: readonly ToolDefinition[] = Object.freeze(
     actionDuration: 0.2,
     priority: 100,
     requiresTarget: true,
+    energyCost: DEFAULT_AXE_ENERGY_COST,
     spriteAssetId: 'item_axe',
   },
   {
@@ -29,6 +35,7 @@ export const DEFAULT_TECHNICAL_TOOLS: readonly ToolDefinition[] = Object.freeze(
     actionDuration: 0.2,
     priority: 100,
     requiresTarget: true,
+    energyCost: DEFAULT_HOE_ENERGY_COST,
     spriteAssetId: 'item_hoe',
   },
   {
@@ -42,6 +49,7 @@ export const DEFAULT_TECHNICAL_TOOLS: readonly ToolDefinition[] = Object.freeze(
     actionDuration: 0.2,
     priority: 100,
     requiresTarget: true,
+    energyCost: DEFAULT_WATERING_CAN_ENERGY_COST,
     spriteAssetId: 'item_watering_can',
   },
 ]);

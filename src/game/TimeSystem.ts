@@ -92,6 +92,17 @@ export class TimeSystem {
   }
 
   /**
+   * Avança o tempo de simulação até o início exato do próximo dia de jogo.
+   * Dispara a transição de dia determinística e retorna a quantidade de segundos avançados.
+   */
+  public advanceToNextDay(): number {
+    const timeOfDay = this.getTimeOfDaySeconds();
+    const secondsToNextDay = this.dayLengthSeconds - timeOfDay;
+    this.advance(secondsToNextDay);
+    return secondsToNextDay;
+  }
+
+  /**
    * Ajusta diretamente o tempo total de simulação (útil para testes, carregamento de saves ou debug).
    * Garante não negatividade.
    */

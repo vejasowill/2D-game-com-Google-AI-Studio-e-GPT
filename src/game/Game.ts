@@ -18,6 +18,7 @@ import { PlantCropSystem } from './PlantCropSystem.ts';
 import { WateringSystem } from './WateringSystem.ts';
 import { HarvestSystem } from './HarvestSystem.ts';
 import { TimeSystem } from './TimeSystem.ts';
+import { RestSystem } from './RestSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -39,6 +40,7 @@ export class Game {
   private plantCropSystem: PlantCropSystem;
   private wateringSystem: WateringSystem;
   private harvestSystem: HarvestSystem;
+  private restSystem: RestSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private canvas: HTMLCanvasElement;
@@ -82,6 +84,7 @@ export class Game {
     this.plantCropSystem = new PlantCropSystem();
     this.wateringSystem = new WateringSystem();
     this.harvestSystem = new HarvestSystem();
+    this.restSystem = new RestSystem();
     this.interactionSystem.setHarvestSystem(this.harvestSystem);
 
     PlaceableTileRegistry.ensureInitialized();

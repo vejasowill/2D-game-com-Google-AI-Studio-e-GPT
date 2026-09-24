@@ -128,6 +128,32 @@ export class World {
   }
 
   /**
+   * Avança o tempo do mundo por uma quantidade específica de segundos de simulação,
+   * atualizando o TimeSystem e processando a expiração de objetos temporários
+   * de forma determinística sem materializar chunks.
+   */
+  public advanceTime(seconds: number): void {
+    if (seconds <= 0) {
+      return;
+    }
+    this.timeSystem.advance(seconds);
+    this.temporaryObjectSystem.update(this, seconds);
+  }
+
+  /**
+   * Avança o tempo do mundo até o início exato do próximo dia de jogo,
+   * atualizando o TimeSystem e processando a expiração de objetos temporários
+   * de forma determinística sem materializar chunks.
+   * Retorna a quantidade de segundos avançados.
+   */
+  public advanceToNextDay(): number {
+    const timeOfDay = this.timeSystem.getTimeOfDaySeconds();
+    const secondsToNextDay = this.timeSystem.getDayLengthSeconds() - timeOfDay;
+    this.advanceTime(secondsToNextDay);
+    return secondsToNextDay;
+  }
+
+  /**
    * Retorna o subsistema dedicado de gerenciamento de objetos temporários.
    */
   public getTemporaryObjectSystem(): TemporaryObjectSystem {
