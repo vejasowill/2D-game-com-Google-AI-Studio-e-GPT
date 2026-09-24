@@ -61,6 +61,9 @@ export interface ToolExecutionResult {
   /** Cooldown efetivo a ser aplicado em segundos (se omitido, utiliza tool.cooldown) */
   readonly cooldownApplied?: number;
 
+  /** Custo ou consumo opcional de energia retornado pela execução */
+  readonly energyCost?: number;
+
   /** Duração efetiva de bloqueio de movimento em segundos (se omitido, utiliza tool.actionDuration) */
   readonly actionDurationApplied?: number;
 

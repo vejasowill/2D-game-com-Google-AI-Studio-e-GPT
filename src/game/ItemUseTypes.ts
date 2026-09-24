@@ -35,6 +35,9 @@ export interface ItemUseDefinition {
   /** Duração opcional em segundos pela qual o movimento do Player é temporariamente bloqueado durante o uso */
   readonly blocksMovementDuration?: number;
 
+  /** Custo declarativo opcional de energia/stamina para o uso deste item */
+  readonly energyCost?: number;
+
   /** Parâmetros customizados adicionais declarativos */
   readonly customArgs?: Readonly<Record<string, unknown>>;
 }
@@ -75,6 +78,9 @@ export interface ItemUseResult {
 
   /** Cooldown efetivo aplicado em segundos */
   readonly cooldownApplied?: number;
+
+  /** Quantidade efetiva de energia consumida pela ação (se aplicável) */
+  readonly energyConsumed?: number;
 
   /** Dados extras opcionais */
   readonly data?: Readonly<Record<string, unknown>>;

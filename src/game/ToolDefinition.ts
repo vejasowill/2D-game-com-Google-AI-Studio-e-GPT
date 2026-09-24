@@ -28,6 +28,7 @@ export type ToolTargetDomain = 'object' | 'tile' | 'any';
 export interface ToolRequirements {
   readonly requiredLevel?: number;
   readonly staminaCost?: number;
+  readonly energyCost?: number;
   readonly customRequirements?: Readonly<Record<string, unknown>>;
 }
 
@@ -80,6 +81,9 @@ export interface ToolDefinition {
 
   /** Domínio preferencial de alvo da ferramenta: 'object' (padrão), 'tile' (terreno) ou 'any' */
   readonly targetDomain?: ToolTargetDomain;
+
+  /** Custo declarativo opcional de energia/stamina para executar a ação desta ferramenta */
+  readonly energyCost?: number;
 
   /** Requisitos declarativos opcionais para validação antes do uso */
   readonly requirements?: ToolRequirements;

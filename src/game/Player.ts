@@ -1,5 +1,6 @@
-import { DEFAULT_HOTBAR_SLOT_COUNT, DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
+import { DEFAULT_HOTBAR_SLOT_COUNT, DEFAULT_PLAYER_MAX_ENERGY, DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
+import { EnergySystem } from './EnergySystem.ts';
 import { Equipment, EquippedItem } from './Equipment.ts';
 import { Hotbar } from './Hotbar.ts';
 import { DEFAULT_INVENTORY_SLOT_COUNT, Inventory } from './Inventory.ts';
@@ -52,12 +53,16 @@ export class Player {
   /** Subsistema e estado do item equipado derivado dinamicamente do inventário */
   public readonly equipment: Equipment;
 
+  /** Subsistema e estado de energia/stamina do Player (independente de física, colisão ou rendering) */
+  public readonly energy: EnergySystem;
+
   constructor(
     initialPosition: WorldCoord,
     speed: number = DEFAULT_PLAYER_SPEED,
     size: number = PLAYER_SIZE,
     inventorySlotCount: number = DEFAULT_INVENTORY_SLOT_COUNT,
     hotbarSlotCount: number = DEFAULT_HOTBAR_SLOT_COUNT,
+    maxEnergy: number = DEFAULT_PLAYER_MAX_ENERGY,
   ) {
     this.position = { ...initialPosition };
     this.speed = speed;
@@ -65,6 +70,7 @@ export class Player {
     this.inventory = new Inventory(inventorySlotCount);
     this.hotbar = new Hotbar(Math.min(inventorySlotCount, hotbarSlotCount));
     this.equipment = new Equipment(this.inventory, this.hotbar);
+    this.energy = new EnergySystem(maxEnergy);
   }
 
   /**
@@ -84,6 +90,20 @@ export class Player {
 
   public getEquipment(): Equipment {
     return this.equipment;
+  }
+
+  /**
+   * Retorna o subsistema de gerenciamento de energia/stamina do jogador.
+   */
+  public getEnergy(): EnergySystem {
+    return this.energy;
+  }
+
+  /**
+   * Alias explícito para recuperação do EnergySystem do jogador.
+   */
+  public getEnergySystem(): EnergySystem {
+    return this.energy;
   }
 
   /**

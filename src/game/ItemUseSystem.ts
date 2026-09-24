@@ -560,7 +560,32 @@ export class ItemUseSystem {
       return result;
     }
 
-    // 4. Localizar alvo se a ação exigir alvo físico
+    // Resolver custo declarativo de energia da ação (ToolDefinition ou ItemUseDefinition)
+    const energyCost = Math.max(
+      0,
+      toolDef?.energyCost ??
+        toolDef?.requirements?.energyCost ??
+        toolDef?.requirements?.staminaCost ??
+        useDef?.energyCost ??
+        0,
+    );
+
+    // 4. Verificar atomicamente se o jogador possui energia suficiente antes de executar
+    if (energyCost > 0 && !player.getEnergy().hasEnough(energyCost)) {
+      const result: ItemUseResult = {
+        success: false,
+        action,
+        code: 'insufficient_energy',
+        message: 'Energia insuficiente para realizar esta ação.',
+      };
+      this.lastResult = result;
+      if (this.onItemUse) {
+        this.onItemUse(result, null);
+      }
+      return result;
+    }
+
+    // 5. Localizar alvo se a ação exigir alvo físico
     let target: CompatibleActionTarget | null = null;
     const targetDomain =
       toolDef?.targetDomain ??
@@ -581,8 +606,9 @@ export class ItemUseSystem {
       }
     }
 
-    // 5. Executar ação através dos contratos polimórficos
+    // 6. Executar ação através dos contratos polimórficos
     let result: ItemUseResult;
+    let effectiveEnergyCost = energyCost;
     if (target) {
       if (isToolTarget(target)) {
         // Caminho da nova arquitetura genérica de ferramentas e alvos ToolTarget
@@ -597,6 +623,7 @@ export class ItemUseSystem {
           actionDuration,
           priority: 100,
           requiresTarget,
+          energyCost,
           customParams: useDef?.customArgs,
         };
         const toolContext: ToolExecutionContext = {
@@ -608,6 +635,9 @@ export class ItemUseSystem {
           customParams: effectiveTool.customParams,
         };
         const toolResult: ToolExecutionResult = target.receiveToolAction(effectiveTool, toolContext);
+        if (toolResult.energyCost !== undefined && toolResult.energyCost >= 0) {
+          effectiveEnergyCost = toolResult.energyCost;
+        }
         result = {
           success: toolResult.success,
           action: toolResult.action,
@@ -616,6 +646,7 @@ export class ItemUseSystem {
           mutations: toolResult.mutations,
           statePatch: toolResult.statePatch,
           cooldownApplied: toolResult.cooldownApplied ?? effectiveTool.cooldown,
+          energyConsumed: (toolResult.success && effectiveEnergyCost > 0) ? effectiveEnergyCost : undefined,
         };
       } else if (isItemActionTarget(target)) {
         // Caminho legado retrocompatível
@@ -627,7 +658,11 @@ export class ItemUseSystem {
           action,
           customArgs: toolDef?.customParams ?? useDef?.customArgs,
         };
-        result = target.receiveAction(action, context);
+        const itemActionResult = target.receiveAction(action, context);
+        result = {
+          ...itemActionResult,
+          energyConsumed: (itemActionResult.success && effectiveEnergyCost > 0) ? effectiveEnergyCost : undefined,
+        };
       } else {
         result = {
           success: false,
@@ -643,14 +678,19 @@ export class ItemUseSystem {
         action,
         code: 'action_executed',
         message: `Ação "${action}" executada com sucesso.`,
+        energyConsumed: effectiveEnergyCost > 0 ? effectiveEnergyCost : undefined,
       };
     }
 
     this.lastResult = result;
     this.lastTarget = target;
 
-    // 6. Se a ação teve sucesso, aplicar consequências de forma desacoplada
+    // 7. Se a ação teve sucesso, aplicar consequências de forma atômica e desacoplada
     if (result.success) {
+      // Consumir energia atomicamente SOMENTE após a validação e o sucesso da ação
+      if (effectiveEnergyCost > 0) {
+        player.getEnergy().consume(effectiveEnergyCost);
+      }
       // Atualizar estado direto do objeto alvo se especificado (para WorldObjects)
       if (target && result.statePatch && 'id' in target) {
         world.getObjectManager().updateObjectState((target as { id: string }).id, result.statePatch);
