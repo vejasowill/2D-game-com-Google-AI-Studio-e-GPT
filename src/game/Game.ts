@@ -17,6 +17,7 @@ import { CropRegistry } from './CropRegistry.ts';
 import { PlantCropSystem } from './PlantCropSystem.ts';
 import { WateringSystem } from './WateringSystem.ts';
 import { HarvestSystem } from './HarvestSystem.ts';
+import { TimeSystem } from './TimeSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -165,6 +166,10 @@ export class Game {
 
   public getHarvestSystem(): HarvestSystem {
     return this.harvestSystem;
+  }
+
+  public getTimeSystem(): TimeSystem {
+    return this.world.getTimeSystem();
   }
 
   public start(): void {

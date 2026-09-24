@@ -12,6 +12,8 @@ import { NaturalObject } from './NaturalObjectDefinition.ts';
 import { NaturalObjectGenerator } from './NaturalObjectGenerator.ts';
 import { isTemporaryWorldObject } from './TemporaryWorldObject.ts';
 import { TemporaryObjectSystem } from './TemporaryObjectSystem.ts';
+import { TimeSystem } from './TimeSystem.ts';
+import { TimeSystemConfig } from './GameTime.ts';
 import { TileModificationRegistry } from './TileModificationRegistry.ts';
 import { TileModificationResult, TileOperationContext } from './TileModificationTypes.ts';
 import { TileRegistry } from './TileRegistry.ts';
@@ -29,13 +31,20 @@ export class World {
   private readonly destroyedNaturalObjectRegistry: DestroyedNaturalObjectRegistry;
   private readonly tileModificationRegistry: TileModificationRegistry;
   private readonly cropSystem: CropSystem;
-  private worldTime: number = 0;
+  private readonly timeSystem: TimeSystem;
 
-  constructor(seed: number = DEFAULT_WORLD_SEED) {
+  constructor(
+    seed: number = DEFAULT_WORLD_SEED,
+    timeSystemOrConfig?: TimeSystem | TimeSystemConfig,
+  ) {
     this.worldGenerator = new WorldGenerator(seed);
     this.chunkManager = new ChunkManager(this.worldGenerator);
     this.objectManager = new WorldObjectManager();
-    this.temporaryObjectSystem = new TemporaryObjectSystem(this.worldTime);
+    this.timeSystem =
+      timeSystemOrConfig instanceof TimeSystem
+        ? timeSystemOrConfig
+        : new TimeSystem(timeSystemOrConfig);
+    this.temporaryObjectSystem = new TemporaryObjectSystem(this.timeSystem.getTotalElapsedSeconds());
     this.destroyedNaturalObjectRegistry = new DestroyedNaturalObjectRegistry();
     this.tileModificationRegistry = new TileModificationRegistry();
     this.cropSystem = new CropSystem();
@@ -86,21 +95,26 @@ export class World {
 
   /**
    * Atualiza a simulação do mundo com o deltaTime decorrido:
-   * 1. Avança o relógio monotônico de simulação do mundo;
-   * 2. Processa o sistema de expiração de objetos temporários via Min-Heap.
+   * 1. Avança o subsistema de autoridade temporal desacoplada (TimeSystem);
+   * 2. Processa o sistema de expiração de objetos temporários via Min-Heap sincronizado.
    */
   public update(deltaTime: number): void {
-    if (deltaTime > 0) {
-      this.worldTime += deltaTime;
-    }
-    this.temporaryObjectSystem.update(this, deltaTime);
+    this.timeSystem.update(deltaTime);
+    this.temporaryObjectSystem.update(this, this.timeSystem.getLastDeltaSeconds());
   }
 
   /**
-   * Retorna o tempo de simulação acumulado no mundo em segundos.
+   * Retorna o tempo de simulação acumulado no mundo em segundos de forma determinística.
    */
   public getTime(): number {
-    return this.worldTime;
+    return this.timeSystem.getTotalElapsedSeconds();
+  }
+
+  /**
+   * Retorna o subsistema desacoplado de gerenciamento temporal do mundo.
+   */
+  public getTimeSystem(): TimeSystem {
+    return this.timeSystem;
   }
 
   /**
@@ -108,7 +122,7 @@ export class World {
    */
   public setTime(time: number): void {
     if (time >= 0) {
-      this.worldTime = time;
+      this.timeSystem.setTime(time);
       this.temporaryObjectSystem.setTime(time);
     }
   }
@@ -161,7 +175,7 @@ export class World {
    * Retorna o estágio determinístico de crescimento do cultivo na célula especificada.
    */
   public getCropGrowthStage(tileX: number, tileY: number): number {
-    return this.cropSystem.getGrowthStage(tileX, tileY, this.worldTime);
+    return this.cropSystem.getGrowthStage(tileX, tileY, this.getTime());
   }
 
   /**
@@ -176,7 +190,7 @@ export class World {
    * Rega o cultivo presente na célula especificada no instante atual do mundo.
    */
   public waterCrop(tileX: number, tileY: number): boolean {
-    return this.cropSystem.waterCrop(tileX, tileY, this.worldTime);
+    return this.cropSystem.waterCrop(tileX, tileY, this.getTime());
   }
 
   /**
@@ -344,7 +358,7 @@ export class World {
       tileX,
       tileY,
       type,
-      modifiedAt: this.worldTime,
+      modifiedAt: this.getTime(),
     });
     return this.chunkManager.setTile(tileX, tileY, type);
   }
@@ -363,7 +377,7 @@ export class World {
       tileY,
       type,
       previousType,
-      modifiedAt: this.worldTime,
+      modifiedAt: this.getTime(),
     });
     const { chunkCoord, localX, localY } = ChunkManager.globalTileToChunkCoord(tileX, tileY);
     const loadedChunk = this.chunkManager.getLoadedChunk(chunkCoord.chunkX, chunkCoord.chunkY);
@@ -403,7 +417,7 @@ export class World {
         tileX,
         tileY,
         type: restoredType,
-        modifiedAt: this.worldTime,
+        modifiedAt: this.getTime(),
       });
     }
 
@@ -518,7 +532,7 @@ export class World {
     if (context?.drops && context.drops.length > 0 && !context.skipWorldDropSpawn) {
       for (const drop of context.drops) {
         const dropObj = new ItemDropObject(
-          `drop:tile:${tileX}:${tileY}:${drop.itemId}:${Math.floor(this.worldTime * 1000)}`,
+          `drop:tile:${tileX}:${tileY}:${drop.itemId}:${Math.floor(this.getTime() * 1000)}`,
           {
             worldX: tileX * TILE_SIZE + (TILE_SIZE - 16) / 2,
             worldY: tileY * TILE_SIZE + (TILE_SIZE - 16) / 2,
@@ -527,7 +541,7 @@ export class World {
           drop.quantity,
           16,
           16,
-          this.worldTime,
+          this.getTime(),
         );
         mutations.push({
           type: 'create_object',
