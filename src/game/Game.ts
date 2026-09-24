@@ -11,6 +11,7 @@ import { ItemUseSystem } from './ItemUseSystem.ts';
 import { PlaceTileSystem } from './PlaceTileSystem.ts';
 import { BreakTileSystem } from './BreakTileSystem.ts';
 import { PlaceableTileRegistry } from './PlaceableTileRegistry.ts';
+import { ToolRegistry } from './ToolRegistry.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -43,6 +44,7 @@ export class Game {
 
     // Inicializar o registro central de itens declarativos
     ItemRegistry.ensureInitialized();
+    ToolRegistry.ensureInitialized();
 
     // 2. Instanciar o sistema de colisão espacial baseado no World
     this.collisionSystem = new CollisionSystem(this.world);

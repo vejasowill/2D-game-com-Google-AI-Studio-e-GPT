@@ -6,6 +6,14 @@ import { WorldObject } from './WorldObject.ts';
 import { WorldMutationHandler } from './WorldMutationHandler.ts';
 import { ItemRegistry } from './ItemRegistry.ts';
 import { SpatialGeometry } from './SpatialGeometry.ts';
+import { ToolRegistry } from './ToolRegistry.ts';
+import { ToolDefinition } from './ToolDefinition.ts';
+import {
+  ToolExecutionContext,
+  ToolExecutionResult,
+  ToolTarget,
+  isToolTarget,
+} from './ToolTarget.ts';
 import {
   ItemActionTarget,
   ItemUseContext,
@@ -14,25 +22,37 @@ import {
   isItemActionTarget,
 } from './ItemUseTypes.ts';
 
+type CompatibleActionTarget = WorldObject & (ItemActionTarget | ToolTarget);
+
 interface ActionCandidateEvaluation {
-  readonly obj: WorldObject & ItemActionTarget;
+  readonly obj: CompatibleActionTarget;
   readonly bounds: WorldBounds;
   readonly boxDistance: number;
   readonly distToFront: number;
 }
 
+/** Rótulos de exibição declarativos amigáveis para ações comuns */
+const ACTION_LABELS: Record<string, string> = {
+  chop: 'Cortar',
+  mine: 'Minerar',
+  dig: 'Cavar',
+  till: 'Arar',
+  water: 'Regar',
+};
+
 /**
  * Sistema genérico, declarativo e desacoplado responsável pelo uso de itens e ferramentas.
  *
  * Princípios arquiteturais:
- * 1. O sistema NUNCA inspeciona 'itemId === ...' nem 'target.type === ...' (zero acoplamento concreto);
- * 2. Itens declaram suas capacidades através de ItemUseDefinition no ItemDefinition;
- * 3. Alvos no mundo declaram sua aceitação de ações através da interface ItemActionTarget;
- * 4. Aplicações de consequências no mundo passam estritamente pelo WorldMutationHandler;
- * 5. Sistema de alcance puramente geométrico (hitbox física, orientação direcional do jogador);
- * 6. Suporte completo a cooldown por item, determinístico e testável sem temporizadores reais;
- * 7. 100% determinístico (sem Math.random), compatível com coordenadas negativas e streaming de chunks;
- * 8. Nunca materializa chunks indevidamente e nunca realiza varredura global O(N).
+ * 1. O sistema NUNCA inspeciona `itemId === 'axe'` nem `target.type === 'tree'` (zero acoplamento concreto);
+ * 2. Ferramentas declaram suas capacidades através de ToolDefinition registradas no ToolRegistry;
+ * 3. Itens genéricos utilizam ItemUseDefinition no ItemDefinition para máxima flexibilidade;
+ * 4. Alvos no mundo declaram sua aceitação de ações através das abstrações ToolTarget e ItemActionTarget;
+ * 5. Aplicações de consequências no mundo passam estritamente pelo WorldMutationHandler;
+ * 6. Sistema de alcance puramente geométrico (hitbox física, orientação direcional do jogador);
+ * 7. Suporte completo a cooldown determinístico e testável sem temporizadores reais;
+ * 8. 100% determinístico (sem Math.random), compatível com coordenadas negativas e streaming de chunks;
+ * 9. Nunca materializa chunks indevidamente e nunca realiza varredura global O(N).
  */
 export class ItemUseSystem {
   public defaultRange: number;
@@ -48,10 +68,10 @@ export class ItemUseSystem {
   private lastResult: ItemUseResult | null = null;
 
   /** Alvo selecionado mais recentemente */
-  private lastTarget: (WorldObject & ItemActionTarget) | null = null;
+  private lastTarget: CompatibleActionTarget | null = null;
 
   /** Alvo selecionável ativo no frame atual à frente do jogador */
-  private currentTarget: (WorldObject & ItemActionTarget) | null = null;
+  private currentTarget: CompatibleActionTarget | null = null;
 
   /** Mensagem transitória de feedback técnico */
   private activeFeedbackMessage: string | null = null;
@@ -60,12 +80,13 @@ export class ItemUseSystem {
   /** Ouvinte desacoplado opcional para eventos de uso de item */
   public onItemUse?: (
     result: ItemUseResult,
-    target?: (WorldObject & ItemActionTarget) | null,
+    target?: CompatibleActionTarget | null,
   ) => void;
 
   constructor(defaultRange: number = 36, defaultCooldown: number = 0.4) {
     this.defaultRange = defaultRange;
     this.defaultCooldown = defaultCooldown;
+    ToolRegistry.ensureInitialized();
   }
 
   /**
@@ -106,12 +127,12 @@ export class ItemUseSystem {
   /**
    * Retorna o último alvo atingido.
    */
-  public getLastTarget(): (WorldObject & ItemActionTarget) | null {
+  public getLastTarget(): CompatibleActionTarget | null {
     return this.lastTarget;
   }
 
   /**
-   * Verifica se o Player possui um item utilizável equipado e pronto para uso (sem cooldown ativo).
+   * Verifica se o Player possui uma ferramenta ou item utilizável equipado e pronto para uso (sem cooldown ativo).
    */
   public canUseItem(player: Player): boolean {
     if (this.cooldownTimer > 0) {
@@ -123,20 +144,27 @@ export class ItemUseSystem {
       return false;
     }
 
-    const itemDef = ItemRegistry.get(equipped.itemId);
-    if (!itemDef || !itemDef.useDefinition) {
-      return false;
+    // 1. Consulta prioritária na fundação de ferramentas (ToolRegistry)
+    const toolDef = ToolRegistry.getByItemId(equipped.itemId);
+    if (toolDef) {
+      return true;
     }
 
-    return true;
+    // 2. Consulta secundária no registro de itens geral (ItemRegistry)
+    const itemDef = ItemRegistry.get(equipped.itemId);
+    if (itemDef?.useDefinition) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
    * Localiza deterministicamente o melhor alvo compatível com a ação à frente do jogador.
    *
    * Ordem rigorosa de seleção e desempate:
-   * 1. Objetos que implementam ItemActionTarget;
-   * 2. Objetos que aceitam a ação requerida (canReceiveAction !== false);
+   * 1. Objetos que implementam ToolTarget ou ItemActionTarget;
+   * 2. Objetos que aceitam a ação requerida (canReceiveToolAction ou canReceiveAction !== false);
    * 3. Objetos à frente do jogador no setor direcional ativo (rejeita estritamente as costas);
    * 4. Menor distância física euclidiana entre as caixas AABB (dentro do alcance efetivo);
    * 5. Menor distância física ao ponto frontal do jogador;
@@ -149,7 +177,8 @@ export class ItemUseSystem {
     world: World,
     action: string,
     overrideRange?: number,
-  ): (WorldObject & ItemActionTarget) | null {
+    toolDef?: ToolDefinition,
+  ): CompatibleActionTarget | null {
     const range = overrideRange ?? this.defaultRange;
     const searchArea = SpatialGeometry.calculateDirectionalArea(
       player.position,
@@ -185,18 +214,44 @@ export class ItemUseSystem {
     const candidates: ActionCandidateEvaluation[] = [];
 
     for (const obj of nearbyObjects) {
-      // 1. O objeto deve implementar o contrato genérico ItemActionTarget
-      if (!isItemActionTarget(obj)) {
+      const isTool = isToolTarget(obj);
+      const isItemAction = isItemActionTarget(obj);
+
+      // 1. O objeto deve implementar ao menos um dos contratos genéricos de ação
+      if (!isTool && !isItemAction) {
         continue;
       }
 
       // 2. Valida se o alvo aceita a ação
-      if (obj.canReceiveAction && !obj.canReceiveAction(action)) {
+      let canReceive = false;
+      if (isTool && toolDef) {
+        const dummyContext: ToolExecutionContext = {
+          player,
+          world,
+          tool: toolDef,
+          equippedItem: player.getEquippedItem()!,
+          target: obj as unknown as ToolTarget,
+        };
+        canReceive = (obj as unknown as ToolTarget).canReceiveToolAction(toolDef, dummyContext);
+      } else if (isItemAction) {
+        const itemTarget = obj as unknown as ItemActionTarget;
+        canReceive = itemTarget.canReceiveAction ? itemTarget.canReceiveAction(action) : true;
+      } else if (isTool) {
+        // Objeto ToolTarget sendo avaliado com ação genérica
+        canReceive = true;
+      }
+
+      if (!canReceive) {
         continue;
       }
 
-      // 3. Obtém os limites físicos da ação
-      const objBounds = getObjectActionWorldBounds(obj);
+      // 3. Obtém os limites físicos da ação (AABB físico)
+      let objBounds: WorldBounds;
+      if (isTool) {
+        objBounds = (obj as unknown as ToolTarget).getTargetBounds();
+      } else {
+        objBounds = getObjectActionWorldBounds(obj as unknown as ItemActionTarget & WorldObject);
+      }
 
       // 4. Verifica se o objeto está no setor frontal na direção do jogador (rejeita costas)
       if (
@@ -231,7 +286,7 @@ export class ItemUseSystem {
       const distToFront = Math.hypot(ocx - frontPoint.worldX, ocy - frontPoint.worldY);
 
       candidates.push({
-        obj,
+        obj: obj as CompatibleActionTarget,
         bounds: objBounds,
         boxDistance,
         distToFront,
@@ -262,12 +317,11 @@ export class ItemUseSystem {
   }
 
   /**
-   * Executa o uso do item atualmente equipado pelo Player.
+   * Executa o uso da ferramenta ou item atualmente equipado pelo Player.
    *
    * Trata todos os casos inválidos sem corromper o estado do mundo:
    * - Nenhum item equipado;
-   * - Item não cadastrado no ItemRegistry;
-   * - Item sem ação declarativa (useDefinition);
+   * - Item sem ferramenta ou ação declarativa associada;
    * - Cooldown ativo;
    * - Alvo fora de alcance ou ausente;
    * - Alvo incompatível.
@@ -286,37 +340,34 @@ export class ItemUseSystem {
       return result;
     }
 
-    // 2. Verificar se a definição do item existe
+    // 2. Resolver ToolDefinition ou fallback ItemUseDefinition
+    const toolDef = ToolRegistry.getByItemId(equipped.itemId);
     const itemDef = ItemRegistry.get(equipped.itemId);
-    if (!itemDef) {
-      const result: ItemUseResult = {
-        success: false,
-        action: '',
-        code: 'item_not_registered',
-        message: `Item "${equipped.itemId}" não registrado.`,
-      };
-      this.lastResult = result;
-      return result;
-    }
+    const useDef = itemDef?.useDefinition;
 
-    // 3. Verificar se o item possui ação de uso declarativa
-    const useDef = itemDef.useDefinition;
-    if (!useDef) {
+    if (!toolDef && !useDef) {
       const result: ItemUseResult = {
         success: false,
         action: '',
         code: 'item_not_usable',
-        message: `O item "${itemDef.name}" não possui ação de uso.`,
+        message: `O item "${itemDef?.name ?? equipped.itemId}" não possui ação de uso.`,
       };
       this.lastResult = result;
       return result;
     }
 
-    // 4. Verificar cooldown
+    // Extrair parâmetros declarativos normalizados
+    const action = toolDef ? toolDef.action : useDef!.action;
+    const range = toolDef ? toolDef.range : (useDef!.range ?? this.defaultRange);
+    const cooldown = toolDef ? toolDef.cooldown : (useDef!.cooldown ?? this.defaultCooldown);
+    const actionDuration = toolDef ? toolDef.actionDuration : (useDef!.blocksMovementDuration ?? 0.2);
+    const requiresTarget = toolDef ? (toolDef.requiresTarget !== false) : (useDef!.requiresTarget !== false);
+
+    // 3. Verificar cooldown
     if (this.cooldownTimer > 0) {
       const result: ItemUseResult = {
         success: false,
-        action: useDef.action,
+        action,
         code: 'cooldown_active',
         message: 'Aguarde o tempo de recarga da ferramenta.',
       };
@@ -324,14 +375,10 @@ export class ItemUseSystem {
       return result;
     }
 
-    const action = useDef.action;
-    const range = useDef.range ?? this.defaultRange;
-    const requiresTarget = useDef.requiresTarget !== false;
-
-    // 5. Localizar alvo se a ação exigir alvo físico
-    let target: (WorldObject & ItemActionTarget) | null = null;
+    // 4. Localizar alvo se a ação exigir alvo físico
+    let target: CompatibleActionTarget | null = null;
     if (requiresTarget) {
-      target = this.findBestTarget(player, world, action, range);
+      target = this.findBestTarget(player, world, action, range, toolDef);
       if (!target) {
         const result: ItemUseResult = {
           success: false,
@@ -344,22 +391,50 @@ export class ItemUseSystem {
       }
     }
 
-    // 6. Preparar contexto imutável de uso
-    const context: ItemUseContext = {
-      player,
-      world,
-      equippedItem: equipped,
-      target,
-      action,
-      customArgs: useDef.customArgs,
-    };
-
-    // 7. Executar a ação no alvo ou na definição
+    // 5. Executar ação através dos contratos polimórficos
     let result: ItemUseResult;
     if (target) {
-      result = target.receiveAction(action, context);
+      if (toolDef && isToolTarget(target)) {
+        // Caminho da nova arquitetura genérica de ferramentas
+        const toolContext: ToolExecutionContext = {
+          player,
+          world,
+          tool: toolDef,
+          equippedItem: equipped,
+          target,
+          customParams: toolDef.customParams,
+        };
+        const toolResult: ToolExecutionResult = target.receiveToolAction(toolDef, toolContext);
+        result = {
+          success: toolResult.success,
+          action: toolResult.action,
+          code: toolResult.code,
+          message: toolResult.message,
+          mutations: toolResult.mutations,
+          statePatch: toolResult.statePatch,
+          cooldownApplied: toolResult.cooldownApplied ?? toolDef.cooldown,
+        };
+      } else if (isItemActionTarget(target)) {
+        // Caminho legado retrocompatível
+        const context: ItemUseContext = {
+          player,
+          world,
+          equippedItem: equipped,
+          target,
+          action,
+          customArgs: toolDef?.customParams ?? useDef?.customArgs,
+        };
+        result = target.receiveAction(action, context);
+      } else {
+        result = {
+          success: false,
+          action,
+          code: 'incompatible_target',
+          message: 'Alvo incompatível com a ferramenta.',
+        };
+      }
     } else {
-      // Para itens de uso livre (ex: poções, consumíveis futuros)
+      // Para ferramentas ou itens de uso livre (sem alvo fixo)
       result = {
         success: true,
         action,
@@ -371,7 +446,7 @@ export class ItemUseSystem {
     this.lastResult = result;
     this.lastTarget = target;
 
-    // 8. Se a ação teve sucesso, aplicar consequências de forma desacoplada
+    // 6. Se a ação teve sucesso, aplicar consequências de forma desacoplada
     if (result.success) {
       // Atualizar estado direto do objeto alvo se especificado
       if (target && result.statePatch) {
@@ -383,17 +458,16 @@ export class ItemUseSystem {
         WorldMutationHandler.applyMutations(world, result.mutations);
       }
 
-      // Aplicar cooldown configurado no item ou padrão
-      const cooldownToApply = result.cooldownApplied ?? useDef.cooldown ?? this.defaultCooldown;
+      // Aplicar cooldown configurado na ferramenta ou retornado pelo resultado
+      const cooldownToApply = result.cooldownApplied ?? cooldown;
       this.cooldownTimer = cooldownToApply;
 
       // Aplicar eventual bloqueio de movimento
-      if (useDef.blocksMovementDuration && useDef.blocksMovementDuration > 0) {
-        this.movementBlockTimer = useDef.blocksMovementDuration;
+      if (actionDuration > 0) {
+        this.movementBlockTimer = actionDuration;
       }
 
       // Iniciar estado temporal determinístico de ação no Player
-      const actionDuration = useDef.blocksMovementDuration ?? Math.min(cooldownToApply, 0.4);
       player.startAction(action, equipped.itemId, actionDuration);
 
       // Registrar mensagem de feedback transitória
@@ -412,7 +486,7 @@ export class ItemUseSystem {
   /**
    * Retorna o alvo atual detectado no frame para a ferramenta equipada.
    */
-  public getCurrentTarget(): (WorldObject & ItemActionTarget) | null {
+  public getCurrentTarget(): CompatibleActionTarget | null {
     return this.currentTarget;
   }
 
@@ -444,10 +518,16 @@ export class ItemUseSystem {
 
     // 2. Atualizar continuamente o alvo detectado à frente do jogador
     const equipped = player.getEquippedItem();
+    const toolDef = equipped ? ToolRegistry.getByItemId(equipped.itemId) : undefined;
     const itemDef = equipped ? ItemRegistry.get(equipped.itemId) : null;
     const useDef = itemDef?.useDefinition;
-    if (useDef && useDef.requiresTarget !== false) {
-      this.currentTarget = this.findBestTarget(player, world, useDef.action, useDef.range);
+
+    const action = toolDef?.action ?? useDef?.action;
+    const range = toolDef?.range ?? useDef?.range ?? this.defaultRange;
+    const requiresTarget = toolDef ? (toolDef.requiresTarget !== false) : (useDef?.requiresTarget !== false);
+
+    if (action && requiresTarget) {
+      this.currentTarget = this.findBestTarget(player, world, action, range, toolDef);
     } else {
       this.currentTarget = null;
     }
@@ -465,7 +545,7 @@ export class ItemUseSystem {
   }
 
   /**
-   * Renderiza na tela um prompt sutil indicando a ação de uso do item equipado (ex: [F] Cortar).
+   * Renderiza na tela um prompt sutil indicando a ação da ferramenta equipada (ex: [F] Cortar).
    */
   public renderPrompt(
     ctx: CanvasRenderingContext2D,
@@ -482,12 +562,20 @@ export class ItemUseSystem {
       return;
     }
 
+    const toolDef = ToolRegistry.getByItemId(equipped.itemId);
     const itemDef = ItemRegistry.get(equipped.itemId);
-    if (!itemDef?.useDefinition) {
+    const action = toolDef?.action ?? itemDef?.useDefinition?.action;
+    if (!action) {
       return;
     }
 
-    const bounds = getObjectActionWorldBounds(this.currentTarget);
+    let bounds: WorldBounds;
+    if (isToolTarget(this.currentTarget)) {
+      bounds = this.currentTarget.getTargetBounds();
+    } else {
+      bounds = getObjectActionWorldBounds(this.currentTarget as unknown as ItemActionTarget & WorldObject);
+    }
+
     const centerWorld: WorldCoord = {
       worldX: bounds.minX + bounds.width / 2,
       worldY: bounds.minY - 26,
@@ -496,7 +584,7 @@ export class ItemUseSystem {
     const screenPos = camera.worldToScreen(centerWorld, viewport);
 
     ctx.save();
-    const actionLabel = itemDef.useDefinition.action === 'chop' ? 'Cortar' : itemDef.useDefinition.action;
+    const actionLabel = ACTION_LABELS[action] ?? action;
     const label = `[F] ${actionLabel}`;
     ctx.font = 'bold 10px monospace';
     const textWidth = ctx.measureText(label).width;

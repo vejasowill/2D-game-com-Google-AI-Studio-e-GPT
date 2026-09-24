@@ -222,6 +222,13 @@ export class Player {
   }
 
   /**
+   * Retorna true se houver uma ação ativa de ferramenta ou item em execução.
+   */
+  public isActionActive(): boolean {
+    return this.activeAction !== null;
+  }
+
+  /**
    * Dispara uma ação temporária do Player (ex: corte com machado).
    * Define o estado temporal determinístico sem alterar a hitbox física ou a posição.
    */

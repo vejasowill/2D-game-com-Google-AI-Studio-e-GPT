@@ -10,9 +10,17 @@ import {
   ItemActionTarget,
   ItemUseContext,
   ItemUseResult,
+  getObjectActionWorldBounds,
 } from './ItemUseTypes.ts';
 import { NaturalObject, NaturalObjectType } from './NaturalObjectDefinition.ts';
-import { WorldCoord } from './types.ts';
+import { WorldBounds, WorldCoord } from './types.ts';
+import { ToolDefinition } from './ToolDefinition.ts';
+import {
+  ToolExecutionContext,
+  ToolExecutionResult,
+  ToolTarget,
+  ToolTargetType,
+} from './ToolTarget.ts';
 
 /**
  * Estado estruturado da árvore no mundo de gameplay.
@@ -30,7 +38,7 @@ export interface NaturalTreeState {
  * básica ("Sacudir Árvore") quanto ao sistema genérico de ações de ferramentas ("chop").
  *
  * Princípios arquiteturais:
- * 1. Implementa NaturalObject, InteractiveWorldObject e ItemActionTarget;
+ * 1. Implementa NaturalObject, InteractiveWorldObject, ItemActionTarget e ToolTarget;
  * 2. Quando o jogador usa uma ferramenta de corte ("chop"), a árvore é completamente destruída/removida do mundo;
  * 3. NÃO permanece toco/stump após o corte;
  * 4. Gera deterministicamente um drop de madeira (ItemDropObject);
@@ -40,7 +48,7 @@ export interface NaturalTreeState {
  * 8. Totalmente desacoplado de IDs concretos de ferramentas (comunica-se apenas pela ação abstrata 'chop').
  */
 export class NaturalTreeObject
-  implements NaturalObject, InteractiveWorldObject, ItemActionTarget
+  implements NaturalObject, InteractiveWorldObject, ItemActionTarget, ToolTarget
 {
   public readonly id: string;
   public readonly type: string = 'tree';
@@ -54,6 +62,25 @@ export class NaturalTreeObject
   public readonly variant: number;
   public state: Readonly<Record<string, unknown>>;
   private destroyed: boolean = false;
+
+  // Propriedades do contrato genérico ToolTarget
+  public readonly targetType: ToolTargetType = 'world_object';
+
+  public get targetId(): string {
+    return this.id;
+  }
+
+  public get targetPosition(): WorldCoord {
+    return this.position;
+  }
+
+  public get underlyingObject(): this {
+    return this;
+  }
+
+  public getTargetBounds(): WorldBounds {
+    return getObjectActionWorldBounds(this);
+  }
 
   public readonly interaction: InteractionDefinition = {
     id: 'shake_tree',
@@ -258,6 +285,46 @@ export class NaturalTreeObject
           permanent: true,
         },
       ],
+    };
+  }
+
+  /**
+   * Contrato ToolTarget:
+   * Valida se a árvore aceita a ferramenta fornecida.
+   * Aceita ferramentas cuja ação seja 'chop' e a árvore não esteja destruída.
+   */
+  public canReceiveToolAction(tool: ToolDefinition, _context: ToolExecutionContext): boolean {
+    if (tool.action !== 'chop') {
+      return false;
+    }
+    return !this.isDestroyed;
+  }
+
+  /**
+   * Contrato ToolTarget:
+   * Executa a ação da ferramenta sobre a árvore retornando ToolExecutionResult estruturado.
+   */
+  public receiveToolAction(tool: ToolDefinition, context: ToolExecutionContext): ToolExecutionResult {
+    const itemUseResult = this.receiveAction(tool.action, {
+      player: context.player,
+      world: context.world,
+      equippedItem: context.equippedItem,
+      target: this,
+      action: tool.action,
+      customArgs: tool.customParams,
+    });
+
+    return {
+      success: itemUseResult.success,
+      action: itemUseResult.action,
+      code: itemUseResult.code,
+      message: itemUseResult.message,
+      target: this,
+      mutations: itemUseResult.mutations,
+      statePatch: itemUseResult.statePatch,
+      cooldownApplied: tool.cooldown,
+      actionDurationApplied: tool.actionDuration,
+      producedItems: itemUseResult.success ? [{ itemId: 'wood', quantity: 3 }] : undefined,
     };
   }
 }
