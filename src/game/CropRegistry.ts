@@ -14,6 +14,13 @@ export const DEFAULT_TECHNICAL_CROPS: readonly CropDefinition[] = Object.freeze(
     stageDuration: 10,
     yieldQuantity: 1,
     harvestItemId: 'turnip',
+    harvestDefinition: {
+      cropId: 'turnip',
+      harvestItemId: 'turnip',
+      harvestQuantity: 1,
+      requiresMaturity: true,
+      action: 'harvest',
+    },
     spriteAssetId: 'crop_turnip',
     stageSpriteAssetIds: [
       'crop_turnip_stage_0',

@@ -11,6 +11,13 @@ import {
 } from './InteractionTypes.ts';
 import { WorldMutationHandler } from './WorldMutationHandler.ts';
 
+export type InteractionTargetProvider = (
+  player: Player,
+  world: World,
+  searchArea: WorldBounds,
+  range: number,
+) => readonly InteractiveWorldObject[];
+
 interface CandidateEvaluation {
   readonly obj: InteractiveWorldObject;
   readonly bounds: WorldBounds;
@@ -50,6 +57,9 @@ export class InteractionSystem {
   /** Ouvinte opcional de eventos de interação */
   public onInteraction?: (result: InteractionResult, target: InteractiveWorldObject) => void;
 
+  /** Provedores adicionais genéricos de alvos interativos (ex: colheita de culturas agrícolas) */
+  private readonly targetProviders: InteractionTargetProvider[] = [];
+
   constructor(
     defaultRange: number = DEFAULT_PLAYER_INTERACTION_RANGE,
     debugEnabled: boolean = DEBUG_INTERACTION,
@@ -58,6 +68,20 @@ export class InteractionSystem {
     this.defaultRange = defaultRange;
     this.debugEnabled = debugEnabled;
     this.showPrompt = showPrompt;
+  }
+
+  /**
+   * Registra um provedor genérico de alvos interativos desacoplado.
+   */
+  public addTargetProvider(provider: InteractionTargetProvider): void {
+    this.targetProviders.push(provider);
+  }
+
+  /**
+   * Vincula diretamente o sistema genérico de colheita ao InteractionSystem através de seu provedor declarativo.
+   */
+  public setHarvestSystem(harvestSystem: { createTargetProvider(): InteractionTargetProvider }): void {
+    this.addTargetProvider(harvestSystem.createTargetProvider());
   }
 
   /**
@@ -243,12 +267,22 @@ export class InteractionSystem {
     const searchArea = this.calculateInteractionArea(player, range);
 
     // Consulta puramente local e espacial no WorldObjectManager
-    const nearbyObjects = world.getObjectManager().getObjectsInArea(
-      searchArea.minX,
-      searchArea.minY,
-      searchArea.width,
-      searchArea.height,
-    );
+    const nearbyObjects: unknown[] = [
+      ...world.getObjectManager().getObjectsInArea(
+        searchArea.minX,
+        searchArea.minY,
+        searchArea.width,
+        searchArea.height,
+      ),
+    ];
+
+    // Consulta os provedores adicionais declarativos de alvos (ex: colheita de culturas)
+    for (const provider of this.targetProviders) {
+      const extraCandidates = provider(player, world, searchArea, range);
+      if (extraCandidates && extraCandidates.length > 0) {
+        nearbyObjects.push(...extraCandidates);
+      }
+    }
 
     if (nearbyObjects.length === 0) {
       return null;

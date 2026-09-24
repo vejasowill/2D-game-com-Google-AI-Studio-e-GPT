@@ -1,3 +1,5 @@
+import type { HarvestDefinition } from './HarvestDefinition.ts';
+
 /**
  * Definição imutável e puramente declarativa de uma cultura agrícola (Crop).
  *
@@ -35,6 +37,9 @@ export interface CropDefinition {
 
   /** Identificador do item que será gerado futuramente na colheita (ex: 'turnip') */
   readonly harvestItemId: string;
+
+  /** Definição declarativa detalhada de colheita da cultura (opcional) */
+  readonly harvestDefinition?: HarvestDefinition;
 
   /** Identificador simbólico de asset base no AssetManager (opcional) */
   readonly spriteAssetId?: string;

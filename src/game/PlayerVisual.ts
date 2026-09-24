@@ -59,6 +59,7 @@ export enum PlayerActionState {
   IDLE = 'idle',
   WALK = 'walk',
   USE_ITEM = 'use_item',
+  HARVEST = 'harvest',
 }
 
 /**

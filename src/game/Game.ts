@@ -16,6 +16,7 @@ import { SoilRegistry } from './SoilState.ts';
 import { CropRegistry } from './CropRegistry.ts';
 import { PlantCropSystem } from './PlantCropSystem.ts';
 import { WateringSystem } from './WateringSystem.ts';
+import { HarvestSystem } from './HarvestSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -36,6 +37,7 @@ export class Game {
   private tileSelectionSystem: TileSelectionSystem;
   private plantCropSystem: PlantCropSystem;
   private wateringSystem: WateringSystem;
+  private harvestSystem: HarvestSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private canvas: HTMLCanvasElement;
@@ -78,6 +80,8 @@ export class Game {
     this.tileSelectionSystem = new TileSelectionSystem();
     this.plantCropSystem = new PlantCropSystem();
     this.wateringSystem = new WateringSystem();
+    this.harvestSystem = new HarvestSystem();
+    this.interactionSystem.setHarvestSystem(this.harvestSystem);
 
     PlaceableTileRegistry.ensureInitialized();
     SoilRegistry.ensureInitialized();
@@ -157,6 +161,10 @@ export class Game {
 
   public getWateringSystem(): WateringSystem {
     return this.wateringSystem;
+  }
+
+  public getHarvestSystem(): HarvestSystem {
+    return this.harvestSystem;
   }
 
   public start(): void {
