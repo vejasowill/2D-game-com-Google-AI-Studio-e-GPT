@@ -23,8 +23,14 @@ export interface CropData {
   /** Timestamp determinístico em segundos do mundo no momento exato do plantio */
   readonly plantedAt: number;
 
-  /** Indica se o solo ao redor do cultivo foi regado (reservado para mecânicas futuras) */
+  /** Indica se o cultivo está atualmente regado */
   readonly watered?: boolean;
+
+  /** Timestamp do mundo da última vez em que foi regado */
+  readonly lastWateredAt?: number;
+
+  /** Tempo total acumulado em segundos em que o cultivo esteve regado antes da rega atual */
+  readonly wateredTimeAccumulated?: number;
 
   /** Indica se o cultivo recebeu fertilizante (reservado para mecânicas futuras) */
   readonly fertilized?: boolean;
@@ -34,13 +40,35 @@ export interface CropData {
 }
 
 /**
+ * Retorna determinística e puramente a duração efetiva total em segundos em que o cultivo
+ * esteve com água disponível para crescimento.
+ *
+ * Princípios:
+ * 1. ZERO chamadas a Math.random();
+ * 2. 100% independente de FPS, pausas ou taxa de chamadas;
+ * 3. Se o cultivo não estiver regado (watered === false), intervalos de tempo seco
+ *    NÃO agregam nenhum tempo de crescimento;
+ * 4. Suporta múltiplos ciclos alternados de rega e seca através do tempo acumulado.
+ */
+export function getCropEffectiveGrowthTime(crop: CropData, currentWorldTime: number): number {
+  const accumulated = crop.wateredTimeAccumulated ?? 0;
+  if (!crop.watered) {
+    return accumulated;
+  }
+  const waterStart = crop.lastWateredAt ?? crop.plantedAt;
+  const currentActiveSpan = Math.max(0, currentWorldTime - waterStart);
+  return accumulated + currentActiveSpan;
+}
+
+/**
  * Calcula determinística e puramente o estágio atual de crescimento de um cultivo.
  *
  * Invariantes rigorosas:
  * 1. ZERO chamadas a Math.random();
  * 2. 100% independente da taxa de quadros por segundo (FPS);
- * 3. Imune a pausas, acelerações de tempo ou streaming de chunks;
- * 4. Ao atingir o estágio máximo (totalStages - 1), o cultivo permanece maduro indefinidamente.
+ * 3. O crescimento progride EXCLUSIVAMENTE durante períodos em que a cultura está regada;
+ * 4. Imune a pausas, acelerações de tempo ou streaming de chunks;
+ * 5. Ao atingir o estágio máximo (totalStages - 1), o cultivo permanece maduro indefinidamente.
  *
  * @param crop Instância de dados do cultivo ativo
  * @param definition Definição declarativa da cultura
@@ -52,16 +80,16 @@ export function calculateCropGrowthStage(
   definition: CropDefinition,
   currentWorldTime: number,
 ): number {
-  if (currentWorldTime <= crop.plantedAt) {
-    return 0;
-  }
-
   const maxStage = Math.max(0, definition.totalStages - 1);
   if (maxStage === 0) {
     return 0;
   }
 
-  const elapsed = Math.max(0, currentWorldTime - crop.plantedAt);
+  // O crescimento decorre unicamente do tempo efetivamente regado
+  const effectiveGrowthTime = getCropEffectiveGrowthTime(crop, currentWorldTime);
+  if (effectiveGrowthTime <= 0) {
+    return 0;
+  }
 
   // Se a cultura possui durações explícitas por estágio (ex: [10, 10, 10] para 4 estágios)
   if (definition.stageDurations && definition.stageDurations.length > 0) {
@@ -69,7 +97,7 @@ export function calculateCropGrowthStage(
     for (let stage = 0; stage < maxStage; stage++) {
       const durationForStage = definition.stageDurations[stage] ?? definition.stageDuration ?? 10;
       accumulatedTime += Math.max(0.001, durationForStage);
-      if (elapsed < accumulatedTime) {
+      if (effectiveGrowthTime < accumulatedTime) {
         return stage;
       }
     }
@@ -78,7 +106,7 @@ export function calculateCropGrowthStage(
 
   // Fallback para duração uniforme de estágio
   const uniformDuration = Math.max(0.001, definition.stageDuration ?? 10);
-  const calculatedStage = Math.floor(elapsed / uniformDuration);
+  const calculatedStage = Math.floor(effectiveGrowthTime / uniformDuration);
   return Math.min(maxStage, calculatedStage);
 }
 
@@ -103,12 +131,12 @@ export function getCropStageProgress(
   definition: CropDefinition,
   currentWorldTime: number,
 ): number {
-  if (currentWorldTime <= crop.plantedAt) {
+  const effectiveGrowthTime = getCropEffectiveGrowthTime(crop, currentWorldTime);
+  if (effectiveGrowthTime <= 0) {
     return 0;
   }
 
   const maxStage = Math.max(0, definition.totalStages - 1);
-  const elapsed = Math.max(0, currentWorldTime - crop.plantedAt);
 
   let accumulatedTime = 0;
   for (let stage = 0; stage < maxStage; stage++) {
@@ -116,8 +144,8 @@ export function getCropStageProgress(
     const stageStartTime = accumulatedTime;
     accumulatedTime += Math.max(0.001, duration);
 
-    if (elapsed < accumulatedTime) {
-      const timeInStage = elapsed - stageStartTime;
+    if (effectiveGrowthTime < accumulatedTime) {
+      const timeInStage = effectiveGrowthTime - stageStartTime;
       return Math.min(1.0, Math.max(0.0, timeInStage / Math.max(0.001, duration)));
     }
   }

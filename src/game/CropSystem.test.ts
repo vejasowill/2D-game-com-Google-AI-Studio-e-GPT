@@ -292,6 +292,8 @@ describe('CropSystem & Farming Integration Suite', () => {
       tileX: 0,
       tileY: 0,
       plantedAt: 100,
+      watered: true,
+      lastWateredAt: 100,
     };
 
     // Salvar Math.random e interceptar para verificar que nenhuma chamada ocorre
@@ -325,8 +327,9 @@ describe('CropSystem & Farming Integration Suite', () => {
       tileX: 0,
       tileY: 0,
       plantedAt: 0,
+      watered: true,
+      lastWateredAt: 0,
     };
-
     assert.equal(calculateCropGrowthStage(crop, cropDef, 0), 0, 'No momento do plantio deve ser estágio 0');
     assert.equal(calculateCropGrowthStage(crop, cropDef, 5), 0, 'Aos 5s deve continuar estágio 0');
     assert.equal(calculateCropGrowthStage(crop, cropDef, 10), 1, 'Aos 10s deve avançar para estágio 1');
@@ -343,6 +346,8 @@ describe('CropSystem & Farming Integration Suite', () => {
       tileX: 0,
       tileY: 0,
       plantedAt: 50,
+      watered: true,
+      lastWateredAt: 50,
     };
 
     // Caso 1: consulta direta aos 75s (simula avanço em 1 frame longo)
@@ -370,6 +375,7 @@ describe('CropSystem & Farming Integration Suite', () => {
 
     world.modifyTile(tileX, tileY, TileType.TILLED_SOIL);
     world.getCropSystem().plantCrop(tileX, tileY, 'turnip', 10);
+    world.waterCrop(tileX, tileY);
 
     // Descarregar chunk do ChunkManager
     const chunkX = Math.floor(tileX / CHUNK_SIZE);
@@ -404,6 +410,7 @@ describe('CropSystem & Farming Integration Suite', () => {
     const success = world.getCropSystem().plantCrop(tileX, tileY, 'turnip', 5);
     assert.equal(success, true, 'Deve registrar plantio em coordenadas negativas');
     assert.equal(world.hasCropAt(tileX, tileY), true);
+    world.getCropSystem().waterCrop(tileX, tileY, 5);
 
     const stage = world.getCropSystem().getGrowthStage(tileX, tileY, 26);
     assert.equal(stage, 2, 'Aos 26s (21s decorridos), deve estar no estágio 2');
@@ -463,6 +470,8 @@ describe('CropSystem & Farming Integration Suite', () => {
       tileX: 0,
       tileY: 0,
       plantedAt: 100,
+      watered: true,
+      lastWateredAt: 100,
     };
 
     assert.equal(calculateCropGrowthStage(crop, cropDef, 100), 0);
@@ -482,6 +491,8 @@ describe('CropSystem & Farming Integration Suite', () => {
       tileX: 0,
       tileY: 0,
       plantedAt: 0,
+      watered: true,
+      lastWateredAt: 0,
     };
 
     assert.equal(isCropMature(crop, cropDef, 29), false);
@@ -537,6 +548,8 @@ describe('CropSystem & Farming Integration Suite', () => {
       tileX: 0,
       tileY: 0,
       plantedAt: 10,
+      watered: true,
+      lastWateredAt: 10,
     };
 
     const stage = calculateCropGrowthStage(crop, cropDef, 25);

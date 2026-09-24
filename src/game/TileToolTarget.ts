@@ -83,7 +83,12 @@ export class TileToolTarget implements ToolTarget {
       return cropDef !== undefined;
     }
 
-    // 2. Rejeição de solo já preparado ou com cultivo para ação de arar/cultivar
+    // 2. Ação declarativa de rega em cultivo plantado
+    if (tool.action === 'water') {
+      return world.getCropSystem().hasCrop(this.tileX, this.tileY);
+    }
+
+    // 3. Rejeição de solo já preparado ou com cultivo para ação de arar/cultivar
     if (tool.action === 'till') {
       if (currentTile.type === TileType.TILLED_SOIL) {
         return false;
@@ -164,6 +169,36 @@ export class TileToolTarget implements ToolTarget {
             tileY: this.tileY,
             cropId: cropDef.id,
             plantedAt: world.getTime(),
+          },
+        ],
+        cooldownApplied: tool.cooldown,
+        actionDurationApplied: tool.actionDuration,
+      };
+    }
+
+    // Execução da ação 'water'
+    if (tool.action === 'water') {
+      if (!world.getCropSystem().hasCrop(this.tileX, this.tileY)) {
+        return {
+          success: false,
+          action: tool.action,
+          code: 'no_crop',
+          message: 'Não há cultivo ativo nesta célula para regar.',
+        };
+      }
+
+      return {
+        success: true,
+        action: tool.action,
+        code: 'crop_watered',
+        message: 'Cultivo regado com sucesso!',
+        target: this,
+        mutations: [
+          {
+            type: 'water_crop',
+            tileX: this.tileX,
+            tileY: this.tileY,
+            wateredAt: world.getTime(),
           },
         ],
         cooldownApplied: tool.cooldown,

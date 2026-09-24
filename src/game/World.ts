@@ -165,6 +165,21 @@ export class World {
   }
 
   /**
+   * Verifica se o cultivo na célula especificada está regado.
+   * Custo O(1), sem materializar chunks.
+   */
+  public isCropWatered(tileX: number, tileY: number): boolean {
+    return this.cropSystem.isWatered(tileX, tileY);
+  }
+
+  /**
+   * Rega o cultivo presente na célula especificada no instante atual do mundo.
+   */
+  public waterCrop(tileX: number, tileY: number): boolean {
+    return this.cropSystem.waterCrop(tileX, tileY, this.worldTime);
+  }
+
+  /**
    * Consulta o estado efetivo de um tile no mundo considerando as alterações do jogador.
    *
    * Resolução:

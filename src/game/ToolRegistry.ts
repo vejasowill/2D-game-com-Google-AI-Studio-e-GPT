@@ -31,6 +31,19 @@ export const DEFAULT_TECHNICAL_TOOLS: readonly ToolDefinition[] = Object.freeze(
     requiresTarget: true,
     spriteAssetId: 'item_hoe',
   },
+  {
+    id: 'basic_watering_can',
+    itemId: 'watering_can',
+    category: 'watering_can',
+    action: 'water',
+    targetDomain: 'tile',
+    range: 48,
+    cooldown: 0.35,
+    actionDuration: 0.2,
+    priority: 100,
+    requiresTarget: true,
+    spriteAssetId: 'item_watering_can',
+  },
 ]);
 
 /**
@@ -108,6 +121,17 @@ export class ToolRegistry {
   public static get(id: string): ToolDefinition | undefined {
     this.ensureInitialized();
     return this.definitions.get(id);
+  }
+
+  /**
+   * Recupera a definição da ferramenta pelo seu ID canônico ou lança exceção descritiva.
+   */
+  public static getOrThrow(id: string): ToolDefinition {
+    const tool = this.get(id);
+    if (!tool) {
+      throw new Error(`[ToolRegistry] Ferramenta "${id}" não encontrada no registro.`);
+    }
+    return tool;
   }
 
   /**

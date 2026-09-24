@@ -14,6 +14,8 @@ import { PlaceableTileRegistry } from './PlaceableTileRegistry.ts';
 import { ToolRegistry } from './ToolRegistry.ts';
 import { SoilRegistry } from './SoilState.ts';
 import { CropRegistry } from './CropRegistry.ts';
+import { PlantCropSystem } from './PlantCropSystem.ts';
+import { WateringSystem } from './WateringSystem.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -32,6 +34,8 @@ export class Game {
   private placeTileSystem: PlaceTileSystem;
   private breakTileSystem: BreakTileSystem;
   private tileSelectionSystem: TileSelectionSystem;
+  private plantCropSystem: PlantCropSystem;
+  private wateringSystem: WateringSystem;
   private renderer: Renderer;
   private loop: GameLoop;
   private canvas: HTMLCanvasElement;
@@ -55,9 +59,10 @@ export class Game {
     // 3. Obter a posição inicial segura para o Player sobre terreno caminhável próximo ao centro
     const initialPlayerPosition = this.world.getSafeSpawnWorldPosition(PLAYER_SIZE);
     this.player = new Player(initialPlayerPosition);
-    // Equipar machado, enxada e sementes iniciais para permitir teste completo do fluxo de cultivo
+    // Equipar machado, enxada, regador e sementes iniciais para permitir teste completo do fluxo de cultivo
     this.player.inventory.addItemStack(createItemStack('axe', 1));
     this.player.inventory.addItemStack(createItemStack('hoe', 1));
+    this.player.inventory.addItemStack(createItemStack('watering_can', 1));
     this.player.inventory.addItemStack(createItemStack('turnip_seed', 5));
 
     // 4. Instanciar o subsistema de streaming espacial de chunks ao redor do Player
@@ -71,6 +76,8 @@ export class Game {
     this.placeTileSystem = new PlaceTileSystem();
     this.breakTileSystem = new BreakTileSystem();
     this.tileSelectionSystem = new TileSelectionSystem();
+    this.plantCropSystem = new PlantCropSystem();
+    this.wateringSystem = new WateringSystem();
 
     PlaceableTileRegistry.ensureInitialized();
     SoilRegistry.ensureInitialized();
@@ -142,6 +149,14 @@ export class Game {
 
   public getBreakTileSystem(): BreakTileSystem {
     return this.breakTileSystem;
+  }
+
+  public getPlantCropSystem(): PlantCropSystem {
+    return this.plantCropSystem;
+  }
+
+  public getWateringSystem(): WateringSystem {
+    return this.wateringSystem;
   }
 
   public start(): void {

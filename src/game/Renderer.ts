@@ -153,6 +153,15 @@ export class Renderer {
         // Renderização técnica do cultivo ativo (se houver)
         const crop = world.getCropAt(tileX, tileY);
         if (crop) {
+          // Feedback técnico mínimo de solo regado/úmido em Pixel Art
+          if (crop.watered) {
+            this.ctx.fillStyle = 'rgba(15, 23, 42, 0.3)';
+            this.ctx.fillRect(screenCoord.screenX + 1, screenCoord.screenY + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+            this.ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+            this.ctx.fillRect(screenCoord.screenX + 3, screenCoord.screenY + 3, 2, 1);
+            this.ctx.fillRect(screenCoord.screenX + 11, screenCoord.screenY + 9, 2, 1);
+          }
+
           const stage = world.getCropGrowthStage(tileX, tileY);
           this.renderCrop(crop, stage, screenCoord.screenX, screenCoord.screenY);
         }

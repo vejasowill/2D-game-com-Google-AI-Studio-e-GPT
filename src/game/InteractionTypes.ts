@@ -103,6 +103,14 @@ export interface PlantCropMutation {
   readonly plantedAt: number;
 }
 
+/** Mutação declarativa para regar uma cultura agrícola em uma célula de terreno */
+export interface WaterCropMutation {
+  readonly type: 'water_crop';
+  readonly tileX: number;
+  readonly tileY: number;
+  readonly wateredAt: number;
+}
+
 /** Mutação declarativa para remover uma cultura agrícola de uma célula de terreno */
 export interface RemoveCropMutation {
   readonly type: 'remove_crop';
@@ -122,6 +130,7 @@ export type WorldMutation =
   | ModifyTileMutation
   | RestoreTileMutation
   | PlantCropMutation
+  | WaterCropMutation
   | RemoveCropMutation;
 
 /**

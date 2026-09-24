@@ -77,6 +77,14 @@ export class WorldMutationHandler {
         );
       }
 
+      case 'water_crop': {
+        return world.getCropSystem().waterCrop(
+          mutation.tileX,
+          mutation.tileY,
+          mutation.wateredAt,
+        );
+      }
+
       case 'remove_crop': {
         return world.getCropSystem().removeCrop(mutation.tileX, mutation.tileY);
       }

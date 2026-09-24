@@ -481,7 +481,7 @@ export class ItemUseSystem {
     const effectiveDomain =
       targetDomain ??
       toolDef?.targetDomain ??
-      (action === 'till' || action === 'plant' ? 'tile' : 'object');
+      (action === 'till' || action === 'plant' || action === 'water' ? 'tile' : 'object');
 
     // 1. Domínio explícito de terreno: pesquisa exclusiva em células de terreno
     if (effectiveDomain === 'tile') {
@@ -565,7 +565,7 @@ export class ItemUseSystem {
     const targetDomain =
       toolDef?.targetDomain ??
       useDef?.targetDomain ??
-      (action === 'till' || action === 'plant' ? 'tile' : 'object');
+      (action === 'till' || action === 'plant' || action === 'water' ? 'tile' : 'object');
 
     if (requiresTarget) {
       target = this.findBestTarget(player, world, action, range, toolDef, targetDomain);
@@ -746,7 +746,7 @@ export class ItemUseSystem {
     const targetDomain =
       toolDef?.targetDomain ??
       useDef?.targetDomain ??
-      (action === 'till' || action === 'plant' ? 'tile' : 'object');
+      (action === 'till' || action === 'plant' || action === 'water' ? 'tile' : 'object');
 
     if (action && requiresTarget) {
       this.currentTarget = this.findBestTarget(player, world, action, range, toolDef, targetDomain);

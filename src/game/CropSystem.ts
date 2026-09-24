@@ -68,6 +68,78 @@ export class CropSystem {
   }
 
   /**
+   * Registra a rega de um cultivo no mundo, atualizando o estado de rega e acumulando o tempo determinístico.
+   *
+   * @param tileX Coordenada X inteira do tile
+   * @param tileY Coordenada Y inteira do tile
+   * @param wateredAt Timestamp do mundo no instante da rega
+   * @returns true se o cultivo existia e foi regado com sucesso, false caso contrário
+   */
+  public waterCrop(tileX: number, tileY: number, wateredAt: number): boolean {
+    const normalizedX = Math.floor(tileX);
+    const normalizedY = Math.floor(tileY);
+    const coordKey = TileModificationRegistry.createCoordKey(normalizedX, normalizedY);
+
+    const existing = this.crops.get(coordKey);
+    if (!existing) {
+      return false;
+    }
+
+    // Se já estava regado anteriormente, acumula o período ativo anterior de forma idempotente e determinística
+    let accumulated = existing.wateredTimeAccumulated ?? 0;
+    if (existing.watered && existing.lastWateredAt !== undefined && wateredAt > existing.lastWateredAt) {
+      accumulated += Math.max(0, wateredAt - existing.lastWateredAt);
+    }
+
+    const updatedCrop: CropData = {
+      ...existing,
+      watered: true,
+      lastWateredAt: wateredAt,
+      wateredTimeAccumulated: accumulated,
+    };
+
+    this.crops.set(coordKey, updatedCrop);
+    return true;
+  }
+
+  /**
+   * Remove o estado de rega de um cultivo (ex: solo perde umidade ou teste determinístico de seca),
+   * congelando o tempo de crescimento no total acumulado até o instante driedAt.
+   */
+  public dryCrop(tileX: number, tileY: number, driedAt: number): boolean {
+    const normalizedX = Math.floor(tileX);
+    const normalizedY = Math.floor(tileY);
+    const coordKey = TileModificationRegistry.createCoordKey(normalizedX, normalizedY);
+
+    const existing = this.crops.get(coordKey);
+    if (!existing || !existing.watered) {
+      return false;
+    }
+
+    const waterStart = existing.lastWateredAt ?? existing.plantedAt;
+    const addedTime = Math.max(0, driedAt - waterStart);
+
+    const updatedCrop: CropData = {
+      ...existing,
+      watered: false,
+      lastWateredAt: undefined,
+      wateredTimeAccumulated: (existing.wateredTimeAccumulated ?? 0) + addedTime,
+    };
+
+    this.crops.set(coordKey, updatedCrop);
+    return true;
+  }
+
+  /**
+   * Consulta se o cultivo em determinado tile está atualmente no estado regado (watered).
+   * Custo O(1), sem materializar chunks.
+   */
+  public isWatered(tileX: number, tileY: number): boolean {
+    const crop = this.getCrop(tileX, tileY);
+    return crop ? crop.watered === true : false;
+  }
+
+  /**
    * Remove o cultivo de uma coordenada de terreno (ex: colheita futura ou remoção).
    */
   public removeCrop(tileX: number, tileY: number): boolean {

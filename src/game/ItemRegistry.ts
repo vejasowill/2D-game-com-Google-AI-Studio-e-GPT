@@ -57,6 +57,22 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     },
   },
   {
+    id: 'watering_can',
+    name: 'Regador',
+    maxStackSize: 1,
+    category: 'watering_can',
+    spriteAssetId: 'item_watering_can',
+    description: 'Ferramenta para irrigar e regar culturas agrícolas plantadas.',
+    useDefinition: {
+      action: 'water',
+      range: 48,
+      cooldown: 0.35,
+      requiresTarget: true,
+      targetDomain: 'tile',
+      consumesItem: false,
+    },
+  },
+  {
     id: 'turnip_seed',
     name: 'Semente de Nabo',
     maxStackSize: DEFAULT_MAX_STACK_SIZE,
