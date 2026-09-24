@@ -59,4 +59,16 @@ export const WOOD_FLOOR_TILE_DEFINITION: TileDefinition = {
   borderColor: '#713f12',
 };
 
+/**
+ * Definição estática do tipo de terreno TILLED_SOIL (solo arado/preparado para cultivo).
+ * Caminhável por padrão com custo de movimento regular.
+ */
+export const TILLED_SOIL_TILE_DEFINITION: TileDefinition = {
+  type: TileType.TILLED_SOIL,
+  walkable: true,
+  movementCost: 1.0,
+  color: '#5c3d1e',
+  borderColor: '#42280d',
+};
+
 

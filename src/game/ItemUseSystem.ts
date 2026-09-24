@@ -1,6 +1,7 @@
 import { Camera } from './Camera.ts';
-import { InputSource, ViewportSize, WorldBounds, WorldCoord } from './types.ts';
-import { Player } from './Player.ts';
+import { TILE_SIZE } from './constants.ts';
+import { InputSource, TileCoord, ViewportSize, WorldBounds, WorldCoord } from './types.ts';
+import { Player, PlayerDirection } from './Player.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
 import { WorldMutationHandler } from './WorldMutationHandler.ts';
@@ -14,6 +15,8 @@ import {
   ToolTarget,
   isToolTarget,
 } from './ToolTarget.ts';
+import { TileToolTarget } from './TileToolTarget.ts';
+import { TileSelectionSystem } from './TileSelectionSystem.ts';
 import {
   ItemActionTarget,
   ItemUseContext,
@@ -22,10 +25,11 @@ import {
   isItemActionTarget,
 } from './ItemUseTypes.ts';
 
-type CompatibleActionTarget = WorldObject & (ItemActionTarget | ToolTarget);
+export type CompatibleActionTarget = ToolTarget | (WorldObject & ItemActionTarget);
+type CompatibleObjectTarget = WorldObject & (ItemActionTarget | ToolTarget);
 
 interface ActionCandidateEvaluation {
-  readonly obj: CompatibleActionTarget;
+  readonly obj: CompatibleObjectTarget;
   readonly bounds: WorldBounds;
   readonly boxDistance: number;
   readonly distToFront: number;
@@ -57,6 +61,9 @@ const ACTION_LABELS: Record<string, string> = {
 export class ItemUseSystem {
   public defaultRange: number;
   public defaultCooldown: number;
+
+  /** Referência desacoplada ao subsistema de seleção de tiles para ferramentas de terreno */
+  private tileSelectionSystem: TileSelectionSystem | null = null;
 
   /** Temporizador de cooldown ativo em segundos */
   private cooldownTimer: number = 0;
@@ -160,7 +167,135 @@ export class ItemUseSystem {
   }
 
   /**
-   * Localiza deterministicamente o melhor alvo compatível com a ação à frente do jogador.
+   * Configura o sistema desacoplado de seleção de células de terreno.
+   */
+  public setTileSelectionSystem(system: TileSelectionSystem | null): void {
+    this.tileSelectionSystem = system;
+  }
+
+  /**
+   * Retorna o sistema atual de seleção de tiles, ou null se não configurado.
+   */
+  public getTileSelectionSystem(): TileSelectionSystem | null {
+    return this.tileSelectionSystem;
+  }
+
+  /**
+   * Localiza deterministicamente a célula de terreno alvo válida à frente do jogador para ferramentas de terreno.
+   *
+   * Ordem de resolução:
+   * 1. Célula de terreno explicitamente selecionada (via toque mobile ou clique do mouse);
+   * 2. Caso não haja seleção explícita, seleciona a célula imediatamente adjacente à frente do jogador;
+   * 3. Validação rigorosa:
+   *    - Coordenadas válidas no mundo;
+   *    - Setor frontal direcional do jogador (rejeita estritamente o setor traseiro/costas);
+   *    - Distância física AABB dentro do alcance da ferramenta;
+   *    - Compatibilidade do terreno com a ação declarativa através do SoilRegistry.
+   */
+  public findBestTileTarget(
+    player: Player,
+    world: World,
+    range: number,
+    toolDef: ToolDefinition,
+  ): TileToolTarget | null {
+    let targetTileCoord: TileCoord | null = this.tileSelectionSystem?.getSelectedTile() ?? null;
+
+    if (!targetTileCoord) {
+      const pcx = player.position.worldX + player.size / 2;
+      const pcy = player.position.worldY + player.size / 2;
+      let targetX = pcx;
+      let targetY = pcy;
+      // Projeta uma coordenada além da caixa de colisão do jogador na direção voltada
+      const step = player.size / 2 + 6;
+      switch (player.direction) {
+        case PlayerDirection.RIGHT:
+          targetX = pcx + step;
+          break;
+        case PlayerDirection.LEFT:
+          targetX = pcx - step;
+          break;
+        case PlayerDirection.DOWN:
+          targetY = pcy + step;
+          break;
+        case PlayerDirection.UP:
+          targetY = pcy - step;
+          break;
+      }
+      targetTileCoord = world.worldToTile({ worldX: targetX, worldY: targetY });
+    }
+
+    if (!world.isValidTileCoord(targetTileCoord.tileX, targetTileCoord.tileY)) {
+      return null;
+    }
+
+    const tileBounds: WorldBounds = {
+      minX: targetTileCoord.tileX * TILE_SIZE,
+      minY: targetTileCoord.tileY * TILE_SIZE,
+      maxX: (targetTileCoord.tileX + 1) * TILE_SIZE,
+      maxY: (targetTileCoord.tileY + 1) * TILE_SIZE,
+      width: TILE_SIZE,
+      height: TILE_SIZE,
+    };
+
+    // Rejeição estrita de tiles no setor traseiro (atrás do jogador)
+    if (
+      !SpatialGeometry.isObjectInFrontSector(
+        player.position,
+        player.size,
+        player.direction,
+        tileBounds,
+      )
+    ) {
+      return null;
+    }
+
+    // Validação de alcance físico entre caixas AABB
+    const playerBox = {
+      minX: player.position.worldX,
+      minY: player.position.worldY,
+      maxX: player.position.worldX + player.size,
+      maxY: player.position.worldY + player.size,
+    };
+
+    const boxDistance = SpatialGeometry.calculateAABBDistance(
+      playerBox.minX,
+      playerBox.minY,
+      playerBox.maxX,
+      playerBox.maxY,
+      tileBounds.minX,
+      tileBounds.minY,
+      tileBounds.maxX,
+      tileBounds.maxY,
+    );
+
+    if (boxDistance > range) {
+      return null;
+    }
+
+    const tileTarget = new TileToolTarget(targetTileCoord.tileX, targetTileCoord.tileY);
+    const equipped = player.getEquippedItem();
+    if (!equipped) {
+      return null;
+    }
+
+    const context: ToolExecutionContext = {
+      player,
+      world,
+      tool: toolDef,
+      equippedItem: equipped,
+      target: tileTarget,
+      customParams: toolDef.customParams,
+    };
+
+    if (!tileTarget.canReceiveToolAction(toolDef, context)) {
+      return null;
+    }
+
+    return tileTarget;
+  }
+
+  /**
+   * Localiza deterministicamente o melhor objeto do mundo (WorldObject) compatível com a ação à frente do jogador.
    *
    * Ordem rigorosa de seleção e desempate:
    * 1. Objetos que implementam ToolTarget ou ItemActionTarget;
@@ -172,13 +307,13 @@ export class ItemUseSystem {
    *
    * NUNCA materializa chunks e NUNCA realiza varredura global de todos os objetos do mundo.
    */
-  public findBestTarget(
+  public findBestObjectTarget(
     player: Player,
     world: World,
     action: string,
     overrideRange?: number,
     toolDef?: ToolDefinition,
-  ): CompatibleActionTarget | null {
+  ): CompatibleObjectTarget | null {
     const range = overrideRange ?? this.defaultRange;
     const searchArea = SpatialGeometry.calculateDirectionalArea(
       player.position,
@@ -237,7 +372,6 @@ export class ItemUseSystem {
         const itemTarget = obj as unknown as ItemActionTarget;
         canReceive = itemTarget.canReceiveAction ? itemTarget.canReceiveAction(action) : true;
       } else if (isTool) {
-        // Objeto ToolTarget sendo avaliado com ação genérica
         canReceive = true;
       }
 
@@ -286,7 +420,7 @@ export class ItemUseSystem {
       const distToFront = Math.hypot(ocx - frontPoint.worldX, ocy - frontPoint.worldY);
 
       candidates.push({
-        obj: obj as CompatibleActionTarget,
+        obj: obj as CompatibleObjectTarget,
         bounds: objBounds,
         boxDistance,
         distToFront,
@@ -314,6 +448,38 @@ export class ItemUseSystem {
     });
 
     return candidates[0].obj;
+  }
+
+  /**
+   * Localiza deterministicamente o melhor alvo compatível com a ação à frente do jogador.
+   * Suporta polimorficamente alvos de terreno (tiles) e objetos do mundo (WorldObjects)
+   * baseado no domínio declarativo (targetDomain) da ferramenta.
+   */
+  public findBestTarget(
+    player: Player,
+    world: World,
+    action: string,
+    overrideRange?: number,
+    toolDef?: ToolDefinition,
+  ): CompatibleActionTarget | null {
+    const range = overrideRange ?? this.defaultRange;
+
+    // 1. Domínio explícito de terreno: pesquisa exclusiva em células de terreno
+    if (toolDef?.targetDomain === 'tile') {
+      return this.findBestTileTarget(player, world, range, toolDef);
+    }
+
+    // 2. Domínio híbrido: avalia objetos do mundo e terreno consecutivamente
+    if (toolDef?.targetDomain === 'any') {
+      const objTarget = this.findBestObjectTarget(player, world, action, range, toolDef);
+      if (objTarget) {
+        return objTarget;
+      }
+      return this.findBestTileTarget(player, world, range, toolDef);
+    }
+
+    // 3. Domínio padrão: objetos do mundo
+    return this.findBestObjectTarget(player, world, action, range, toolDef);
   }
 
   /**
@@ -448,9 +614,9 @@ export class ItemUseSystem {
 
     // 6. Se a ação teve sucesso, aplicar consequências de forma desacoplada
     if (result.success) {
-      // Atualizar estado direto do objeto alvo se especificado
-      if (target && result.statePatch) {
-        world.getObjectManager().updateObjectState(target.id, result.statePatch);
+      // Atualizar estado direto do objeto alvo se especificado (para WorldObjects)
+      if (target && result.statePatch && 'id' in target) {
+        world.getObjectManager().updateObjectState((target as { id: string }).id, result.statePatch);
       }
 
       // Aplicar mutações de mundo estritamente via WorldMutationHandler
@@ -499,7 +665,12 @@ export class ItemUseSystem {
     world: World,
     input: InputSource,
     deltaTime: number = 0,
+    tileSelectionSystem?: TileSelectionSystem,
   ): ItemUseResult | null {
+    if (tileSelectionSystem) {
+      this.tileSelectionSystem = tileSelectionSystem;
+    }
+
     // 1. Atualizar temporizadores monotônicos
     if (deltaTime > 0) {
       if (this.cooldownTimer > 0) {

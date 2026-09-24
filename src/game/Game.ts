@@ -12,6 +12,7 @@ import { PlaceTileSystem } from './PlaceTileSystem.ts';
 import { BreakTileSystem } from './BreakTileSystem.ts';
 import { PlaceableTileRegistry } from './PlaceableTileRegistry.ts';
 import { ToolRegistry } from './ToolRegistry.ts';
+import { SoilRegistry } from './SoilState.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -52,8 +53,9 @@ export class Game {
     // 3. Obter a posição inicial segura para o Player sobre terreno caminhável próximo ao centro
     const initialPlayerPosition = this.world.getSafeSpawnWorldPosition(PLAYER_SIZE);
     this.player = new Player(initialPlayerPosition);
-    // Equipar machado inicial no primeiro slot para demonstrar uso de ferramentas
+    // Equipar machado e enxada iniciais nos primeiros slots para demonstrar uso de ferramentas
     this.player.inventory.addItemStack(createItemStack('axe', 1));
+    this.player.inventory.addItemStack(createItemStack('hoe', 1));
 
     // 4. Instanciar o subsistema de streaming espacial de chunks ao redor do Player
     this.streamingSystem = new ChunkStreamingSystem(this.world);
@@ -68,6 +70,7 @@ export class Game {
     this.tileSelectionSystem = new TileSelectionSystem();
 
     PlaceableTileRegistry.ensureInitialized();
+    SoilRegistry.ensureInitialized();
 
     // Adicionar um objeto interativo demonstrativo técnico e limpo (TestToggleObject) próximo ao spawn
     const demoToggleBeacon = new TestToggleObject(
@@ -187,7 +190,13 @@ export class Game {
     this.interactionSystem.update(this.player, this.world, this.input, deltaTime);
 
     // 6. Executar o sistema genérico de uso de ferramentas e itens equipados
-    this.itemUseSystem.update(this.player, this.world, this.input, deltaTime);
+    this.itemUseSystem.update(
+      this.player,
+      this.world,
+      this.input,
+      deltaTime,
+      this.tileSelectionSystem,
+    );
 
     // 6.5. Executar o sistema genérico de colocação de blocos (PLACE)
     this.placeTileSystem.update(

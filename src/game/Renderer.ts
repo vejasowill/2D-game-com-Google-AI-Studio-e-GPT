@@ -9,7 +9,7 @@ import { SpriteRenderer } from './SpriteRenderer.ts';
 import { TileSelectionSystem } from './TileSelectionSystem.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
-import { ViewportSize } from './types.ts';
+import { TileType, ViewportSize } from './types.ts';
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -137,6 +137,15 @@ export class Renderer {
             TILE_SIZE - 1,
             TILE_SIZE - 1,
           );
+        }
+
+        // Variação procedural discreta para solo cultivável (sulcos paralelos sutis)
+        if (tile.type === TileType.TILLED_SOIL) {
+          this.ctx.fillStyle = 'rgba(40, 20, 5, 0.45)';
+          const grooveHeight = 1;
+          this.ctx.fillRect(screenCoord.screenX + 2, screenCoord.screenY + 4, TILE_SIZE - 4, grooveHeight);
+          this.ctx.fillRect(screenCoord.screenX + 2, screenCoord.screenY + 8, TILE_SIZE - 4, grooveHeight);
+          this.ctx.fillRect(screenCoord.screenX + 2, screenCoord.screenY + 12, TILE_SIZE - 4, grooveHeight);
         }
       }
     }

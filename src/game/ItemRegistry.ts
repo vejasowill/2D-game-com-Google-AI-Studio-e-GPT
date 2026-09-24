@@ -42,6 +42,20 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
       requiresTarget: true,
     },
   },
+  {
+    id: 'hoe',
+    name: 'Enxada',
+    maxStackSize: 1,
+    category: 'tool',
+    spriteAssetId: 'item_hoe',
+    description: 'Ferramenta para cultivar e preparar o solo para plantio.',
+    useDefinition: {
+      action: 'till',
+      range: 48,
+      cooldown: 0.35,
+      requiresTarget: true,
+    },
+  },
 ]);
 
 /**

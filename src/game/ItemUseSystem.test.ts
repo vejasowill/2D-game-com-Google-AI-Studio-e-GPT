@@ -152,7 +152,10 @@ world.getObjectManager().addObject(treeCandidateB);
 
 const bestTarget = itemUseSystem.findBestTarget(player, world, 'chop', 40);
 assert(bestTarget !== null, 'Deve encontrar o melhor alvo entre os candidatos');
-assert(bestTarget?.id === 'tree_cand_A' || bestTarget?.id === 'tree_cand_B', 'Alvo deve ser um dos candidatos válidos');
+assert(
+  bestTarget && 'id' in bestTarget && (bestTarget.id === 'tree_cand_A' || bestTarget.id === 'tree_cand_B'),
+  'Alvo deve ser um dos candidatos válidos',
+);
 console.log('✓ 9. Busca e desempate determinístico de múltiplos alvos validados');
 
 // 10. Testar contrato ItemActionTarget genérico com objeto customizado desacoplado

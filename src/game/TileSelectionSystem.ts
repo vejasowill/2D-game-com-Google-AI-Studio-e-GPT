@@ -31,16 +31,25 @@ export class TileSelectionSystem {
   }
 
   /**
-   * Define o tile selecionado atualmente.
+   * Define o tile selecionado atualmente. Aceita TileCoord ou coordenadas (x, y).
    */
-  public selectTile(tileCoord: TileCoord | null): void {
-    if (!tileCoord) {
+  public selectTile(tileCoordOrX: TileCoord | number | null, maybeY?: number): void {
+    if (tileCoordOrX === null || tileCoordOrX === undefined) {
       this.selectedTile = null;
       return;
     }
+    if (typeof tileCoordOrX === 'number') {
+      if (typeof maybeY === 'number') {
+        this.selectedTile = {
+          tileX: Math.floor(tileCoordOrX),
+          tileY: Math.floor(maybeY),
+        };
+      }
+      return;
+    }
     this.selectedTile = {
-      tileX: Math.floor(tileCoord.tileX),
-      tileY: Math.floor(tileCoord.tileY),
+      tileX: Math.floor(tileCoordOrX.tileX),
+      tileY: Math.floor(tileCoordOrX.tileY),
     };
   }
 

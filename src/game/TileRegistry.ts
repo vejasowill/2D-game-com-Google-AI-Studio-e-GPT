@@ -2,6 +2,7 @@ import {
   EMPTY_TILE_DEFINITION,
   GRASS_TILE_DEFINITION,
   TileDefinition,
+  TILLED_SOIL_TILE_DEFINITION,
   WATER_TILE_DEFINITION,
   WOOD_FLOOR_TILE_DEFINITION,
 } from './TileDefinition.ts';
@@ -25,6 +26,7 @@ export class TileRegistry {
     this.register(WATER_TILE_DEFINITION);
     this.register(EMPTY_TILE_DEFINITION);
     this.register(WOOD_FLOOR_TILE_DEFINITION);
+    this.register(TILLED_SOIL_TILE_DEFINITION);
     this.isInitialized = true;
   }
 

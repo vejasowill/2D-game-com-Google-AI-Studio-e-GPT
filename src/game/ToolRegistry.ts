@@ -10,12 +10,26 @@ export const DEFAULT_TECHNICAL_TOOLS: readonly ToolDefinition[] = Object.freeze(
     itemId: 'axe',
     category: 'axe',
     action: 'chop',
+    targetDomain: 'object',
     range: 36,
     cooldown: 0.4,
     actionDuration: 0.2,
     priority: 100,
     requiresTarget: true,
     spriteAssetId: 'item_axe',
+  },
+  {
+    id: 'basic_hoe',
+    itemId: 'hoe',
+    category: 'hoe',
+    action: 'till',
+    targetDomain: 'tile',
+    range: 48,
+    cooldown: 0.35,
+    actionDuration: 0.2,
+    priority: 100,
+    requiresTarget: true,
+    spriteAssetId: 'item_hoe',
   },
 ]);
 
@@ -92,6 +106,7 @@ export class ToolRegistry {
    * Recupera a definição da ferramenta pelo seu ID canônico.
    */
   public static get(id: string): ToolDefinition | undefined {
+    this.ensureInitialized();
     return this.definitions.get(id);
   }
 
@@ -99,6 +114,7 @@ export class ToolRegistry {
    * Recupera a definição da ferramenta associada ao itemId do inventário.
    */
   public static getByItemId(itemId: string): ToolDefinition | undefined {
+    this.ensureInitialized();
     return this.byItemId.get(itemId);
   }
 
@@ -106,6 +122,7 @@ export class ToolRegistry {
    * Verifica se uma ferramenta com o ID especificado está registrada.
    */
   public static has(id: string): boolean {
+    this.ensureInitialized();
     return this.definitions.has(id);
   }
 
@@ -113,6 +130,7 @@ export class ToolRegistry {
    * Verifica se existe ferramenta associada ao itemId especificado.
    */
   public static hasItemId(itemId: string): boolean {
+    this.ensureInitialized();
     return this.byItemId.has(itemId);
   }
 
@@ -120,6 +138,7 @@ export class ToolRegistry {
    * Retorna todas as ferramentas registradas no sistema.
    */
   public static getAll(): readonly ToolDefinition[] {
+    this.ensureInitialized();
     return Array.from(this.definitions.values());
   }
 

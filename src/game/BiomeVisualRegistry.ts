@@ -59,6 +59,12 @@ export class BiomeVisualRegistry {
       borderColor: '#713f12',
     });
 
+    // Fallback para solo arado/preparado em qualquer bioma
+    this.registerFallback(TileType.TILLED_SOIL, {
+      color: '#5c3d1e',
+      borderColor: '#42280d',
+    });
+
     // 2. PLAINS (Planície temperada / pradaria)
     // Verde claro natural com contorno de grama equilibrada
     this.register(Biome.PLAINS, TileType.GRASS, {

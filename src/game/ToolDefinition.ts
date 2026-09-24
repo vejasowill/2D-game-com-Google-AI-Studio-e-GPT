@@ -14,6 +14,14 @@ export type ToolCategory =
   | string;
 
 /**
+ * Domínio declarativo do alvo principal da ferramenta.
+ * - 'object': Opera sobre WorldObjects espaciais (ex: árvores com machado, rochas com picareta);
+ * - 'tile': Opera sobre células discretas do terreno (ex: solo com enxada, poça com balde);
+ * - 'any': Avalia objetos ou terreno polimorficamente sem discriminação.
+ */
+export type ToolTargetDomain = 'object' | 'tile' | 'any';
+
+/**
  * Requisitos opcionais declarativos para o uso de uma ferramenta.
  * Preparado para futuros sistemas de nível, stamina ou condições ambientais.
  */
@@ -69,6 +77,9 @@ export interface ToolDefinition {
 
   /** Indica se a ação exige obrigatoriamente um alvo válido ao alcance (padrão true para ferramentas de impacto) */
   readonly requiresTarget?: boolean;
+
+  /** Domínio preferencial de alvo da ferramenta: 'object' (padrão), 'tile' (terreno) ou 'any' */
+  readonly targetDomain?: ToolTargetDomain;
 
   /** Requisitos declarativos opcionais para validação antes do uso */
   readonly requirements?: ToolRequirements;
