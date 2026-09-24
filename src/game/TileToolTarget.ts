@@ -1,4 +1,5 @@
 import { TILE_SIZE } from './constants.ts';
+import { CropRegistry } from './CropRegistry.ts';
 import { SoilRegistry } from './SoilState.ts';
 import { ToolDefinition } from './ToolDefinition.ts';
 import {
@@ -70,9 +71,26 @@ export class TileToolTarget implements ToolTarget {
       return false;
     }
 
-    // Rejeição de solo já preparado para ação de arar/cultivar
-    if (currentTile.type === TileType.TILLED_SOIL && tool.action === 'till') {
-      return false;
+    // 1. Ação declarativa de plantio em solo preparado
+    if (tool.action === 'plant') {
+      if (currentTile.type !== TileType.TILLED_SOIL) {
+        return false;
+      }
+      if (world.getCropSystem().hasCrop(this.tileX, this.tileY)) {
+        return false;
+      }
+      const cropDef = CropRegistry.getBySeedItemId(context.equippedItem.itemId);
+      return cropDef !== undefined;
+    }
+
+    // 2. Rejeição de solo já preparado ou com cultivo para ação de arar/cultivar
+    if (tool.action === 'till') {
+      if (currentTile.type === TileType.TILLED_SOIL) {
+        return false;
+      }
+      if (world.getCropSystem().hasCrop(this.tileX, this.tileY)) {
+        return false;
+      }
     }
 
     // Consulta transições declarativas no SoilRegistry
@@ -100,6 +118,56 @@ export class TileToolTarget implements ToolTarget {
         action: tool.action,
         code: 'invalid_tile',
         message: 'Célula de terreno não encontrada.',
+      };
+    }
+
+    // Execução da ação 'plant'
+    if (tool.action === 'plant') {
+      if (currentTile.type !== TileType.TILLED_SOIL) {
+        return {
+          success: false,
+          action: tool.action,
+          code: 'not_tilled_soil',
+          message: 'As sementes só podem ser plantadas em solo preparado (tilled soil).',
+        };
+      }
+
+      if (world.getCropSystem().hasCrop(this.tileX, this.tileY)) {
+        return {
+          success: false,
+          action: tool.action,
+          code: 'already_has_crop',
+          message: 'Este terreno já possui um cultivo plantado.',
+        };
+      }
+
+      const cropDef = CropRegistry.getBySeedItemId(context.equippedItem.itemId);
+      if (!cropDef) {
+        return {
+          success: false,
+          action: tool.action,
+          code: 'not_a_seed',
+          message: 'O item equipado não é uma semente válida.',
+        };
+      }
+
+      return {
+        success: true,
+        action: tool.action,
+        code: 'crop_planted',
+        message: `Cultura "${cropDef.name}" plantada com sucesso!`,
+        target: this,
+        mutations: [
+          {
+            type: 'plant_crop',
+            tileX: this.tileX,
+            tileY: this.tileY,
+            cropId: cropDef.id,
+            plantedAt: world.getTime(),
+          },
+        ],
+        cooldownApplied: tool.cooldown,
+        actionDurationApplied: tool.actionDuration,
       };
     }
 

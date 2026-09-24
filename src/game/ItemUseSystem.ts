@@ -196,7 +196,8 @@ export class ItemUseSystem {
     player: Player,
     world: World,
     range: number,
-    toolDef: ToolDefinition,
+    toolDef?: ToolDefinition,
+    action?: string,
   ): TileToolTarget | null {
     let targetTileCoord: TileCoord | null = this.tileSelectionSystem?.getSelectedTile() ?? null;
 
@@ -278,16 +279,29 @@ export class ItemUseSystem {
       return null;
     }
 
+    const effectiveTool: ToolDefinition = toolDef ?? {
+      id: `item_action_${equipped.itemId}`,
+      itemId: equipped.itemId,
+      category: 'item',
+      action: action ?? 'plant',
+      targetDomain: 'tile',
+      range,
+      cooldown: 0.3,
+      actionDuration: 0.2,
+      priority: 100,
+      requiresTarget: true,
+    };
+
     const context: ToolExecutionContext = {
       player,
       world,
-      tool: toolDef,
+      tool: effectiveTool,
       equippedItem: equipped,
       target: tileTarget,
-      customParams: toolDef.customParams,
+      customParams: effectiveTool.customParams,
     };
 
-    if (!tileTarget.canReceiveToolAction(toolDef, context)) {
+    if (!tileTarget.canReceiveToolAction(effectiveTool, context)) {
       return null;
     }
 
@@ -461,21 +475,26 @@ export class ItemUseSystem {
     action: string,
     overrideRange?: number,
     toolDef?: ToolDefinition,
+    targetDomain?: 'object' | 'tile' | 'any',
   ): CompatibleActionTarget | null {
     const range = overrideRange ?? this.defaultRange;
+    const effectiveDomain =
+      targetDomain ??
+      toolDef?.targetDomain ??
+      (action === 'till' || action === 'plant' ? 'tile' : 'object');
 
     // 1. Domínio explícito de terreno: pesquisa exclusiva em células de terreno
-    if (toolDef?.targetDomain === 'tile') {
-      return this.findBestTileTarget(player, world, range, toolDef);
+    if (effectiveDomain === 'tile') {
+      return this.findBestTileTarget(player, world, range, toolDef, action);
     }
 
     // 2. Domínio híbrido: avalia objetos do mundo e terreno consecutivamente
-    if (toolDef?.targetDomain === 'any') {
+    if (effectiveDomain === 'any') {
       const objTarget = this.findBestObjectTarget(player, world, action, range, toolDef);
       if (objTarget) {
         return objTarget;
       }
-      return this.findBestTileTarget(player, world, range, toolDef);
+      return this.findBestTileTarget(player, world, range, toolDef, action);
     }
 
     // 3. Domínio padrão: objetos do mundo
@@ -543,8 +562,13 @@ export class ItemUseSystem {
 
     // 4. Localizar alvo se a ação exigir alvo físico
     let target: CompatibleActionTarget | null = null;
+    const targetDomain =
+      toolDef?.targetDomain ??
+      useDef?.targetDomain ??
+      (action === 'till' || action === 'plant' ? 'tile' : 'object');
+
     if (requiresTarget) {
-      target = this.findBestTarget(player, world, action, range, toolDef);
+      target = this.findBestTarget(player, world, action, range, toolDef, targetDomain);
       if (!target) {
         const result: ItemUseResult = {
           success: false,
@@ -560,17 +584,30 @@ export class ItemUseSystem {
     // 5. Executar ação através dos contratos polimórficos
     let result: ItemUseResult;
     if (target) {
-      if (toolDef && isToolTarget(target)) {
-        // Caminho da nova arquitetura genérica de ferramentas
+      if (isToolTarget(target)) {
+        // Caminho da nova arquitetura genérica de ferramentas e alvos ToolTarget
+        const effectiveTool: ToolDefinition = toolDef ?? {
+          id: `item_action_${equipped.itemId}`,
+          itemId: equipped.itemId,
+          category: itemDef?.category ?? 'item',
+          action,
+          targetDomain,
+          range,
+          cooldown,
+          actionDuration,
+          priority: 100,
+          requiresTarget,
+          customParams: useDef?.customArgs,
+        };
         const toolContext: ToolExecutionContext = {
           player,
           world,
-          tool: toolDef,
+          tool: effectiveTool,
           equippedItem: equipped,
           target,
-          customParams: toolDef.customParams,
+          customParams: effectiveTool.customParams,
         };
-        const toolResult: ToolExecutionResult = target.receiveToolAction(toolDef, toolContext);
+        const toolResult: ToolExecutionResult = target.receiveToolAction(effectiveTool, toolContext);
         result = {
           success: toolResult.success,
           action: toolResult.action,
@@ -578,7 +615,7 @@ export class ItemUseSystem {
           message: toolResult.message,
           mutations: toolResult.mutations,
           statePatch: toolResult.statePatch,
-          cooldownApplied: toolResult.cooldownApplied ?? toolDef.cooldown,
+          cooldownApplied: toolResult.cooldownApplied ?? effectiveTool.cooldown,
         };
       } else if (isItemActionTarget(target)) {
         // Caminho legado retrocompatível
@@ -622,6 +659,16 @@ export class ItemUseSystem {
       // Aplicar mutações de mundo estritamente via WorldMutationHandler
       if (result.mutations && result.mutations.length > 0) {
         WorldMutationHandler.applyMutations(world, result.mutations);
+      }
+
+      // Se o item for consumível ou declarar consumesItem, deduzir atomicamente após o sucesso
+      const shouldConsume =
+        useDef?.consumesItem ??
+        (toolDef ? false : itemDef?.category === 'seed' || itemDef?.category === 'consumable');
+      if (shouldConsume) {
+        const qtyToConsume = useDef?.consumeQuantity ?? 1;
+        const selectedSlotIndex = player.getHotbar().getSelectedSlotIndex();
+        player.getInventory().removeQuantityFromSlot(selectedSlotIndex, qtyToConsume);
       }
 
       // Aplicar cooldown configurado na ferramenta ou retornado pelo resultado
@@ -696,9 +743,13 @@ export class ItemUseSystem {
     const action = toolDef?.action ?? useDef?.action;
     const range = toolDef?.range ?? useDef?.range ?? this.defaultRange;
     const requiresTarget = toolDef ? (toolDef.requiresTarget !== false) : (useDef?.requiresTarget !== false);
+    const targetDomain =
+      toolDef?.targetDomain ??
+      useDef?.targetDomain ??
+      (action === 'till' || action === 'plant' ? 'tile' : 'object');
 
     if (action && requiresTarget) {
-      this.currentTarget = this.findBestTarget(player, world, action, range, toolDef);
+      this.currentTarget = this.findBestTarget(player, world, action, range, toolDef, targetDomain);
     } else {
       this.currentTarget = null;
     }

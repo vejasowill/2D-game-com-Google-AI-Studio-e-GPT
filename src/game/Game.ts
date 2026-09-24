@@ -13,6 +13,7 @@ import { BreakTileSystem } from './BreakTileSystem.ts';
 import { PlaceableTileRegistry } from './PlaceableTileRegistry.ts';
 import { ToolRegistry } from './ToolRegistry.ts';
 import { SoilRegistry } from './SoilState.ts';
+import { CropRegistry } from './CropRegistry.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -43,9 +44,10 @@ export class Game {
     // 1. Instanciar o World (dados dos tiles e autoridade de chunks)
     this.world = new World();
 
-    // Inicializar o registro central de itens declarativos
+    // Inicializar os registros centrais declarativos
     ItemRegistry.ensureInitialized();
     ToolRegistry.ensureInitialized();
+    CropRegistry.ensureInitialized();
 
     // 2. Instanciar o sistema de colisão espacial baseado no World
     this.collisionSystem = new CollisionSystem(this.world);
@@ -53,9 +55,10 @@ export class Game {
     // 3. Obter a posição inicial segura para o Player sobre terreno caminhável próximo ao centro
     const initialPlayerPosition = this.world.getSafeSpawnWorldPosition(PLAYER_SIZE);
     this.player = new Player(initialPlayerPosition);
-    // Equipar machado e enxada iniciais nos primeiros slots para demonstrar uso de ferramentas
+    // Equipar machado, enxada e sementes iniciais para permitir teste completo do fluxo de cultivo
     this.player.inventory.addItemStack(createItemStack('axe', 1));
     this.player.inventory.addItemStack(createItemStack('hoe', 1));
+    this.player.inventory.addItemStack(createItemStack('turnip_seed', 5));
 
     // 4. Instanciar o subsistema de streaming espacial de chunks ao redor do Player
     this.streamingSystem = new ChunkStreamingSystem(this.world);

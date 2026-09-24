@@ -1,6 +1,8 @@
 import { AssetManager } from './AssetManager.ts';
 import { TILE_SIZE } from './constants.ts';
 import { Camera } from './Camera.ts';
+import { CropRegistry } from './CropRegistry.ts';
+import { CropData } from './CropState.ts';
 import { InteractionSystem } from './InteractionSystem.ts';
 import { ItemUseSystem } from './ItemUseSystem.ts';
 import { Player } from './Player.ts';
@@ -146,6 +148,13 @@ export class Renderer {
           this.ctx.fillRect(screenCoord.screenX + 2, screenCoord.screenY + 4, TILE_SIZE - 4, grooveHeight);
           this.ctx.fillRect(screenCoord.screenX + 2, screenCoord.screenY + 8, TILE_SIZE - 4, grooveHeight);
           this.ctx.fillRect(screenCoord.screenX + 2, screenCoord.screenY + 12, TILE_SIZE - 4, grooveHeight);
+        }
+
+        // Renderização técnica do cultivo ativo (se houver)
+        const crop = world.getCropAt(tileX, tileY);
+        if (crop) {
+          const stage = world.getCropGrowthStage(tileX, tileY);
+          this.renderCrop(crop, stage, screenCoord.screenX, screenCoord.screenY);
         }
       }
     }
@@ -730,5 +739,76 @@ export class Renderer {
     }
 
     return null;
+  }
+
+  /**
+   * Renderiza deterministicamente um cultivo de acordo com seu estágio de crescimento atual.
+   *
+   * Princípios técnicos:
+   * 1. Pixel Art com coordenadas inteiras estritas;
+   * 2. Tenta renderizar sprite registrado no AssetManager se disponível;
+   * 3. Caso não haja sprite cadastrado, desenha fallback geométrico técnico simples e discreto;
+   * 4. Zero interferência em colisão, física ou alcance.
+   */
+  private renderCrop(crop: CropData, stage: number, screenX: number, screenY: number): void {
+    const sx = Math.floor(screenX);
+    const sy = Math.floor(screenY);
+
+    const def = CropRegistry.get(crop.cropId);
+    const stageSpriteId = def?.stageSpriteAssetIds?.[stage] ?? (stage > 0 ? def?.spriteAssetId : undefined);
+
+    if (stageSpriteId) {
+      const assetManager = AssetManager.getInstance();
+      const sheet = assetManager.getSpriteSheet(stageSpriteId);
+      if (sheet && sheet.imageSource) {
+        this.ctx.drawImage(sheet.imageSource, sx, sy, TILE_SIZE, TILE_SIZE);
+        return;
+      }
+    }
+
+    // Fallback geométrico técnico discreto por estágio
+    switch (stage) {
+      case 0: {
+        // Estágio 0: Semente semeada (pequenos pontos discretos no centro do solo)
+        this.ctx.fillStyle = '#bfa27a';
+        this.ctx.fillRect(sx + 6, sy + 7, 2, 2);
+        this.ctx.fillRect(sx + 9, sy + 8, 2, 2);
+        break;
+      }
+
+      case 1: {
+        // Estágio 1: Broto jovem inicial (pequeno caule e folhas verdes nascentes)
+        this.ctx.fillStyle = '#558b2f';
+        this.ctx.fillRect(sx + 7, sy + 7, 2, 4);
+        this.ctx.fillStyle = '#7cb342';
+        this.ctx.fillRect(sx + 6, sy + 5, 4, 2);
+        break;
+      }
+
+      case 2: {
+        // Estágio 2: Planta em desenvolvimento (folhagem intermediária mais encorpada)
+        this.ctx.fillStyle = '#457a24';
+        this.ctx.fillRect(sx + 7, sy + 6, 2, 5);
+        this.ctx.fillStyle = '#689f38';
+        this.ctx.fillRect(sx + 5, sy + 4, 6, 3);
+        this.ctx.fillStyle = '#8bc34a';
+        this.ctx.fillRect(sx + 6, sy + 2, 4, 2);
+        break;
+      }
+
+      default: {
+        // Estágio 3+: Maduro (folhagem desenvolvida com topo característico visível)
+        this.ctx.fillStyle = '#33691e';
+        this.ctx.fillRect(sx + 4, sy + 2, 8, 4);
+        this.ctx.fillStyle = '#7cb342';
+        this.ctx.fillRect(sx + 5, sy + 1, 6, 2);
+        // Fruto/raiz parcialmente visível na terra
+        this.ctx.fillStyle = '#e8eaf6';
+        this.ctx.fillRect(sx + 6, sy + 6, 4, 4);
+        this.ctx.fillStyle = '#8e24aa';
+        this.ctx.fillRect(sx + 6, sy + 5, 4, 2);
+        break;
+      }
+    }
   }
 }

@@ -94,6 +94,22 @@ export interface RestoreTileMutation {
   readonly tileY: number;
 }
 
+/** Mutação declarativa para plantar uma cultura agrícola em uma célula de terreno */
+export interface PlantCropMutation {
+  readonly type: 'plant_crop';
+  readonly tileX: number;
+  readonly tileY: number;
+  readonly cropId: string;
+  readonly plantedAt: number;
+}
+
+/** Mutação declarativa para remover uma cultura agrícola de uma célula de terreno */
+export interface RemoveCropMutation {
+  readonly type: 'remove_crop';
+  readonly tileX: number;
+  readonly tileY: number;
+}
+
 /**
  * União discriminada de todas as mutações possíveis no estado dos objetos do mundo.
  * O executor aplica essas mutações através do WorldObjectManager preservando o particionamento espacial.
@@ -104,7 +120,9 @@ export type WorldMutation =
   | UpdatePositionMutation
   | UpdateStateMutation
   | ModifyTileMutation
-  | RestoreTileMutation;
+  | RestoreTileMutation
+  | PlantCropMutation
+  | RemoveCropMutation;
 
 /**
  * Estrutura extensível de resultado da execução de uma interação.

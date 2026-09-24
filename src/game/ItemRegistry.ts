@@ -56,6 +56,31 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
       requiresTarget: true,
     },
   },
+  {
+    id: 'turnip_seed',
+    name: 'Semente de Nabo',
+    maxStackSize: DEFAULT_MAX_STACK_SIZE,
+    category: 'seed',
+    spriteAssetId: 'item_turnip_seed',
+    description: 'Semente para plantio de nabos em solo arado (tilled soil).',
+    useDefinition: {
+      action: 'plant',
+      range: 48,
+      cooldown: 0.3,
+      requiresTarget: true,
+      targetDomain: 'tile',
+      consumesItem: true,
+      consumeQuantity: 1,
+    },
+  },
+  {
+    id: 'turnip',
+    name: 'Nabo',
+    maxStackSize: DEFAULT_MAX_STACK_SIZE,
+    category: 'flora',
+    spriteAssetId: 'item_turnip',
+    description: 'Um nabo fresco cultivado.',
+  },
 ]);
 
 /**

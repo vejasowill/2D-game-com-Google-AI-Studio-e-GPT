@@ -88,6 +88,20 @@ export class ChunkManager {
   }
 
   /**
+   * Alias semântico para verificar se um chunk está carregado na memória.
+   */
+  public isChunkLoaded(chunkX: number, chunkY: number): boolean {
+    return this.hasChunk(chunkX, chunkY);
+  }
+
+  /**
+   * Carrega ou gera sob demanda o chunk na coordenada especificada.
+   */
+  public loadChunk(chunkX: number, chunkY: number): Chunk {
+    return this.getChunk(chunkX, chunkY);
+  }
+
+  /**
    * Retorna o chunk se já estiver carregado na memória, sem disparar geração.
    */
   public getLoadedChunk(chunkX: number, chunkY: number): Chunk | null {

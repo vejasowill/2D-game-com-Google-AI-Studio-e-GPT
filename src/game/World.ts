@@ -3,6 +3,8 @@ import { Chunk } from './Chunk.ts';
 import { Biome } from './Biome.ts';
 import { BiomeVisualRegistry, TerrainVisualDefinition } from './BiomeVisualRegistry.ts';
 import { DEFAULT_WORLD_SEED, PLAYER_SIZE, TILE_SIZE } from './constants.ts';
+import { CropData } from './CropState.ts';
+import { CropSystem } from './CropSystem.ts';
 import { DestroyedNaturalObjectRegistry } from './DestroyedNaturalObjectRegistry.ts';
 import { ItemDropObject } from './ItemDropObject.ts';
 import { ModifyTileMutation, WorldMutation } from './InteractionTypes.ts';
@@ -26,6 +28,7 @@ export class World {
   private readonly temporaryObjectSystem: TemporaryObjectSystem;
   private readonly destroyedNaturalObjectRegistry: DestroyedNaturalObjectRegistry;
   private readonly tileModificationRegistry: TileModificationRegistry;
+  private readonly cropSystem: CropSystem;
   private worldTime: number = 0;
 
   constructor(seed: number = DEFAULT_WORLD_SEED) {
@@ -35,6 +38,7 @@ export class World {
     this.temporaryObjectSystem = new TemporaryObjectSystem(this.worldTime);
     this.destroyedNaturalObjectRegistry = new DestroyedNaturalObjectRegistry();
     this.tileModificationRegistry = new TileModificationRegistry();
+    this.cropSystem = new CropSystem();
 
     // Integrar o ciclo de vida do WorldObjectManager com o TemporaryObjectSystem
     this.objectManager.setListener({
@@ -128,6 +132,36 @@ export class World {
    */
   public getTileModificationRegistry(): TileModificationRegistry {
     return this.tileModificationRegistry;
+  }
+
+  /**
+   * Retorna a referência do sistema persistente de culturas agrícolas do mundo.
+   */
+  public getCropSystem(): CropSystem {
+    return this.cropSystem;
+  }
+
+  /**
+   * Verifica rapidamente se há uma cultura ativa plantada na célula especificada.
+   * Custo O(1), sem materializar chunks.
+   */
+  public hasCropAt(tileX: number, tileY: number): boolean {
+    return this.cropSystem.hasCrop(tileX, tileY);
+  }
+
+  /**
+   * Retorna os dados do cultivo ativo na célula especificada, ou null caso não exista.
+   * Custo O(1), sem materializar chunks.
+   */
+  public getCropAt(tileX: number, tileY: number): CropData | null {
+    return this.cropSystem.getCrop(tileX, tileY);
+  }
+
+  /**
+   * Retorna o estágio determinístico de crescimento do cultivo na célula especificada.
+   */
+  public getCropGrowthStage(tileX: number, tileY: number): number {
+    return this.cropSystem.getGrowthStage(tileX, tileY, this.worldTime);
   }
 
   /**
@@ -322,6 +356,13 @@ export class World {
       loadedChunk.setTile(localX, localY, type);
     }
     return true;
+  }
+
+  /**
+   * Modifica o tipo de um tile no mundo, registrando a alteração no TileModificationRegistry.
+   */
+  public modifyTile(tileX: number, tileY: number, newTileType: TileType, previousTileType?: TileType): boolean {
+    return this.applyTileModification(tileX, tileY, newTileType, previousTileType);
   }
 
   /**

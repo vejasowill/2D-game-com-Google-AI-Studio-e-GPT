@@ -23,6 +23,15 @@ export interface ItemUseDefinition {
   /** Indica se a ação exige obrigatoriamente um alvo válido ao alcance (padrão true para ferramentas de impacto) */
   readonly requiresTarget?: boolean;
 
+  /** Domínio de alvo preferencial da ação (opcional, 'object' por padrão, ou 'tile' para solo/blocos) */
+  readonly targetDomain?: 'object' | 'tile' | 'any';
+
+  /** Indica se o uso deste item deve consumir quantidade do ItemStack no inventário (ex: sementes, comida) */
+  readonly consumesItem?: boolean;
+
+  /** Quantidade a ser consumida após a conclusão com sucesso (padrão: 1) */
+  readonly consumeQuantity?: number;
+
   /** Duração opcional em segundos pela qual o movimento do Player é temporariamente bloqueado durante o uso */
   readonly blocksMovementDuration?: number;
 

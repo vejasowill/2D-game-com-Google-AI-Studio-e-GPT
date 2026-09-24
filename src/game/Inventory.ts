@@ -220,6 +220,29 @@ export class Inventory {
   }
 
   /**
+   * Conta a quantidade total acumulada de determinado itemId em todos os slots.
+   */
+  public countItem(itemId: string): number {
+    const targetId = itemId.trim();
+    let total = 0;
+    for (const slot of this.slots) {
+      if (slot && slot.itemId === targetId) {
+        total += slot.quantity;
+      }
+    }
+    return total;
+  }
+
+  /**
+   * Remove deterministicamente uma quantidade de um slot específico.
+   * Retorna true se a remoção foi bem sucedida.
+   */
+  public removeQuantityFromSlot(slotIndex: number, amount: number = 1): boolean {
+    const result = this.removeSlotItem(slotIndex, amount);
+    return result.removedStack !== null;
+  }
+
+  /**
    * Remove uma quantidade ou o stack completo de um slot específico.
    */
   public removeSlotItem(

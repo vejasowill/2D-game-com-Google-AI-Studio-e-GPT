@@ -242,6 +242,13 @@ export class Input implements InputSource {
   }
 
   /**
+   * Dispara uma ação abstrata programaticamente (ex: use_item, interact, place, break).
+   */
+  public triggerAction(action: string): void {
+    this.triggerKeyDown(action);
+  }
+
+  /**
    * Simulação programática de tecla solta.
    */
   public triggerKeyUp(keyOrCode: string): void {

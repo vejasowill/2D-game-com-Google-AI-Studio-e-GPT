@@ -68,6 +68,19 @@ export class WorldMutationHandler {
         return world.restoreTileModification(mutation.tileX, mutation.tileY);
       }
 
+      case 'plant_crop': {
+        return world.getCropSystem().plantCrop(
+          mutation.tileX,
+          mutation.tileY,
+          mutation.cropId,
+          mutation.plantedAt,
+        );
+      }
+
+      case 'remove_crop': {
+        return world.getCropSystem().removeCrop(mutation.tileX, mutation.tileY);
+      }
+
       default: {
         return false;
       }

@@ -4,7 +4,7 @@ import { ItemUseDefinition } from './ItemUseTypes.ts';
  * Categoria genérica opcional de um item.
  * Utilizada para agrupamento lógico sem acoplamento a regras de gameplay.
  */
-export type ItemCategory = 'material' | 'flora' | 'consumable' | 'tool' | 'misc';
+export type ItemCategory = 'material' | 'flora' | 'consumable' | 'tool' | 'seed' | 'misc';
 
 /**
  * Definição imutável e declarativa de um item.
