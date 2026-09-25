@@ -175,6 +175,10 @@ export class Game {
     return this.world.getTimeSystem();
   }
 
+  public getRestSystem(): RestSystem {
+    return this.restSystem;
+  }
+
   public start(): void {
     this.loop.start();
   }
