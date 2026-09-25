@@ -12,6 +12,8 @@ import { TileSelectionSystem } from './TileSelectionSystem.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
 import { TileType, ViewportSize } from './types.ts';
+import { ItemRegistry } from './ItemRegistry.ts';
+import { ItemIconRenderer } from './ItemIconRenderer.ts';
 import { calculateHudState, HudState } from './HudState.ts';
 
 export class Renderer {
@@ -19,6 +21,11 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private width: number = 0;
   private height: number = 0;
+
+  // Estado transitório visual para observabilidade do item selecionado na Hotbar
+  private lastObservedSelectedSlot: number = -1;
+  private selectedItemTooltipTimer: number = 0;
+  private readonly TOOLTIP_DURATION: number = 2.0;
 
   // Estilo visual inicial de fundo
   private readonly clearColor: string = '#121316';
@@ -70,6 +77,31 @@ export class Renderer {
   }
 
   /**
+   * Atualiza timers visuais transitórios da HUD (como exibição temporária do nome do item selecionado).
+   */
+  public update(deltaTime: number, player?: Player): void {
+    if (this.selectedItemTooltipTimer > 0) {
+      this.selectedItemTooltipTimer = Math.max(0, this.selectedItemTooltipTimer - deltaTime);
+    }
+    if (player) {
+      const currentSelected = player.hotbar.getSelectedSlotIndex();
+      if (this.lastObservedSelectedSlot === -1) {
+        this.lastObservedSelectedSlot = currentSelected;
+      } else if (this.lastObservedSelectedSlot !== currentSelected) {
+        this.lastObservedSelectedSlot = currentSelected;
+        this.selectedItemTooltipTimer = this.TOOLTIP_DURATION;
+      }
+    }
+  }
+
+  /**
+   * Força o disparo do tooltip temporário com o nome do item atualmente selecionado.
+   */
+  public triggerSelectedSlotTooltip(): void {
+    this.selectedItemTooltipTimer = this.TOOLTIP_DURATION;
+  }
+
+  /**
    * Transforma os dados do World em pixels na tela através da Camera
    */
   public render(
@@ -79,6 +111,11 @@ export class Renderer {
     interactionSystem?: InteractionSystem,
     itemUseSystem?: ItemUseSystem,
     tileSelectionSystem?: TileSelectionSystem,
+    isInventoryOpen: boolean = false,
+    draggedSlotIndex: number | null = null,
+    dragPos: { x: number; y: number } | null = null,
+    hoveredSlotIndex: number | null = null,
+    selectedSlotIndex: number | null = null,
   ): void {
     // 1. Limpar fundo escuro
     this.ctx.fillStyle = this.clearColor;
@@ -242,10 +279,21 @@ export class Renderer {
     }
 
     // 6. Renderizar HUD técnico mínimo da Hotbar (barra de slots discretos com destaque de seleção)
-    this.renderHotbar(player);
+    this.renderHotbar(player, isInventoryOpen);
 
     // 7. Renderizar HUD técnico mínimo de Tempo e Energia
     this.renderHud(world, player);
+
+    // 8. Renderizar painel de observabilidade do Inventário (20 slots reais) se ativo
+    if (isInventoryOpen) {
+      this.renderInventoryPanel(
+        player,
+        draggedSlotIndex,
+        dragPos,
+        hoveredSlotIndex,
+        selectedSlotIndex,
+      );
+    }
   }
 
   /**
@@ -595,14 +643,22 @@ export class Renderer {
 
   /**
    * Renderiza a representação técnica mínima e limpa dos slots da Hotbar na barra inferior.
-   * Destaca claramente o slot ativo e exibe a quantidade e o item equipado.
-   * Não afeta o núcleo de física, movimentação ou entidades.
+   * Destaca claramente o slot ativo, exibe a quantidade e o ícone do item via ItemIconRenderer,
+   * botão de abertura do Inventário e tooltip temporário com o nome do item selecionado.
    */
-  private renderHotbar(player: Player): void {
+  private renderHotbar(player: Player, isInventoryOpen: boolean = false): void {
     const inventory = player.inventory;
     const hotbar = player.hotbar;
     const slotCount = hotbar.getSlotCount();
     const selectedSlot = hotbar.getSelectedSlotIndex();
+
+    // Rastreia alteração de slot para rearmar o timer do nome temporário
+    if (this.lastObservedSelectedSlot === -1) {
+      this.lastObservedSelectedSlot = selectedSlot;
+    } else if (this.lastObservedSelectedSlot !== selectedSlot) {
+      this.lastObservedSelectedSlot = selectedSlot;
+      this.selectedItemTooltipTimer = this.TOOLTIP_DURATION;
+    }
 
     const slotSize = 36;
     const gap = 4;
@@ -656,58 +712,9 @@ export class Renderer {
       }
 
       if (stack) {
-        // Tenta renderizar o ícone a partir do Spritesheet do item registrado no AssetManager
-        const itemSheet = AssetManager.getInstance().getSpriteSheet(`item_${stack.itemId}`) ??
-                          AssetManager.getInstance().getSpriteSheet(stack.itemId);
-        let renderedIcon = false;
-        if (itemSheet && itemSheet.imageSource) {
-          const frame = itemSheet.getFrame('idle');
-          if (frame && typeof this.ctx.drawImage === 'function') {
-            this.ctx.drawImage(
-              itemSheet.imageSource,
-              frame.sx,
-              frame.sy,
-              frame.sWidth,
-              frame.sHeight,
-              slotX + 10,
-              slotY + 10,
-              16,
-              16,
-            );
-            renderedIcon = true;
-          }
-        }
-
-        if (!renderedIcon) {
-          // Miniatura técnica representativa por itemId (fallback procedural)
-          if (stack.itemId === 'wood') {
-            this.ctx.fillStyle = '#854d0e';
-            this.ctx.fillRect(slotX + 10, slotY + 13, 16, 10);
-            this.ctx.fillStyle = '#a16207';
-            this.ctx.fillRect(slotX + 12, slotY + 15, 12, 2);
-          } else if (stack.itemId === 'stone') {
-            this.ctx.fillStyle = '#64748b';
-            this.ctx.fillRect(slotX + 11, slotY + 11, 14, 14);
-            this.ctx.fillStyle = '#94a3b8';
-            this.ctx.fillRect(slotX + 13, slotY + 13, 10, 3);
-          } else if (stack.itemId === 'flower') {
-            this.ctx.fillStyle = '#f43f5e';
-            this.ctx.fillRect(slotX + 12, slotY + 11, 12, 12);
-            this.ctx.fillStyle = '#fbbf24';
-            this.ctx.fillRect(slotX + 15, slotY + 14, 6, 6);
-          } else if (stack.itemId === 'axe') {
-            // Machado na barra de atalhos
-            this.ctx.fillStyle = '#92400e';
-            this.ctx.fillRect(slotX + 16, slotY + 11, 3, 14);
-            this.ctx.fillStyle = '#94a3b8';
-            this.ctx.fillRect(slotX + 18, slotY + 11, 6, 6);
-            this.ctx.fillStyle = '#e2e8f0';
-            this.ctx.fillRect(slotX + 22, slotY + 11, 2, 6);
-          } else {
-            this.ctx.fillStyle = '#d97706';
-            this.ctx.fillRect(slotX + 11, slotY + 11, 14, 14);
-          }
-        }
+        // Renderização declarativa extensível do ícone via ItemIconRenderer
+        const itemDef = ItemRegistry.get(stack.itemId);
+        ItemIconRenderer.renderIcon(this.ctx, itemDef, slotX + 10, slotY + 10, 16);
 
         // Quantidade numérica no canto inferior direito
         this.ctx.fillStyle = '#000000';
@@ -721,6 +728,408 @@ export class Renderer {
         }
       }
     }
+
+    // Botão discreto de abertura/fechamento do Inventário [INV] acoplado à Hotbar
+    const invBtn = this.getHotbarInventoryButtonBounds(player);
+    this.ctx.fillStyle = isInventoryOpen ? 'rgba(30, 58, 138, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+    if (typeof this.ctx.fillRect === 'function') {
+      this.ctx.fillRect(invBtn.x, invBtn.y, invBtn.width, invBtn.height);
+    }
+    this.ctx.strokeStyle = isInventoryOpen ? '#fbbf24' : 'rgba(148, 163, 184, 0.6)';
+    this.ctx.lineWidth = isInventoryOpen ? 2 : 1;
+    if (typeof this.ctx.strokeRect === 'function') {
+      this.ctx.strokeRect(invBtn.x + 0.5, invBtn.y + 0.5, invBtn.width - 1, invBtn.height - 1);
+    }
+    this.ctx.fillStyle = isInventoryOpen ? '#fbbf24' : '#e2e8f0';
+    this.ctx.font = 'bold 9px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    if (typeof this.ctx.fillText === 'function') {
+      this.ctx.fillText('INV', invBtn.x + invBtn.width / 2, invBtn.y + invBtn.height / 2);
+    }
+
+    // Tooltip temporário de texto com o nome do item selecionado na Hotbar
+    if (this.selectedItemTooltipTimer > 0) {
+      const selectedStack = inventory.getSlot(selectedSlot);
+      if (selectedStack) {
+        const itemDef = ItemRegistry.get(selectedStack.itemId);
+        const itemName = itemDef?.name ?? selectedStack.itemId;
+        const opacity = Math.min(1.0, this.selectedItemTooltipTimer / 0.4);
+
+        if (typeof this.ctx.save === 'function') this.ctx.save();
+        this.ctx.font = 'bold 10px monospace';
+        const textWidth = typeof this.ctx.measureText === 'function' ? this.ctx.measureText(itemName).width : 60;
+        const boxWidth = Math.round(textWidth + 16);
+        const boxHeight = 18;
+        const boxX = Math.round(startX + totalWidth / 2 - boxWidth / 2);
+        const boxY = startY - boxHeight - 8;
+
+        this.ctx.fillStyle = `rgba(15, 23, 42, ${0.92 * opacity})`;
+        if (typeof this.ctx.fillRect === 'function') {
+          this.ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        }
+        this.ctx.strokeStyle = `rgba(251, 191, 36, ${0.75 * opacity})`;
+        this.ctx.lineWidth = 1;
+        if (typeof this.ctx.strokeRect === 'function') {
+          this.ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxWidth - 1, boxHeight - 1);
+        }
+
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = `rgba(0, 0, 0, ${0.8 * opacity})`;
+        if (typeof this.ctx.fillText === 'function') {
+          this.ctx.fillText(itemName, boxX + boxWidth / 2 + 1, boxY + boxHeight / 2 + 1);
+          this.ctx.fillStyle = `rgba(254, 240, 138, ${opacity})`;
+          this.ctx.fillText(itemName, boxX + boxWidth / 2, boxY + boxHeight / 2);
+        }
+        if (typeof this.ctx.restore === 'function') this.ctx.restore();
+      }
+    }
+  }
+
+  /**
+   * Renderiza a janela/painel mínimo de observabilidade do Inventory (20 slots reais).
+   *
+   * Princípios arquiteturais:
+   * 1. Consulta estritamente os 20 slots de player.inventory.getAllSlots();
+   * 2. Zero duplicação de inventário ou criação de estado paralelo;
+   * 3. Utiliza ItemIconRenderer para todos os ícones;
+   * 4. Exibe número do slot (1-20), ícone, quantidade e indicação de vazio;
+   * 5. Inclui botão de fechar [X] e destaque nos slots associados à Hotbar (1-8);
+   * 6. Suporta arrasto visual (drag-and-drop) com item flutuante e realce de slot alvo.
+   */
+  public renderInventoryPanel(
+    player: Player,
+    draggedSlotIndex: number | null = null,
+    dragPos: { x: number; y: number } | null = null,
+    hoveredSlotIndex: number | null = null,
+    selectedSlotIndex: number | null = null,
+  ): void {
+    const inventory = player.inventory;
+    const hotbar = player.hotbar;
+    const allSlots = inventory.getAllSlots();
+    const totalSlots = allSlots.length; // 20
+
+    const cols = 5;
+    const rows = Math.ceil(totalSlots / cols); // 4
+    const slotSize = 36;
+    const gap = 4;
+    const gridWidth = cols * slotSize + (cols - 1) * gap; // 196
+    const gridHeight = rows * slotSize + (rows - 1) * gap; // 156
+
+    const panelPaddingX = 14;
+    const headerHeight = 28;
+    const footerHeight = 20;
+    const panelWidth = gridWidth + panelPaddingX * 2; // 224
+    const panelHeight = headerHeight + gridHeight + footerHeight + 6;
+
+    const panelX = Math.round((this.width - panelWidth) / 2);
+    const panelY = Math.round((this.height - panelHeight) / 2);
+
+    if (typeof this.ctx.save === 'function') this.ctx.save();
+
+    // 1. Sombra suave de fundo e moldura modal escura translúcida
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    if (typeof this.ctx.fillRect === 'function') {
+      this.ctx.fillRect(0, 0, this.width, this.height);
+      this.ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+      this.ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    }
+    this.ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
+    this.ctx.lineWidth = 1;
+    if (typeof this.ctx.strokeRect === 'function') {
+      this.ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelWidth - 1, panelHeight - 1);
+    }
+
+    // 2. Cabeçalho: Título e Botão de Fechar [X]
+    this.ctx.fillStyle = '#f8fafc';
+    this.ctx.font = 'bold 10px monospace';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    if (typeof this.ctx.fillText === 'function') {
+      this.ctx.fillText('INVENTÁRIO (20 SLOTS)', panelX + 12, panelY + 14);
+    }
+
+    // Botão de fechar [X]
+    const closeBtnX = panelX + panelWidth - 22;
+    const closeBtnY = panelY + 6;
+    const closeBtnSize = 16;
+    this.ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+    if (typeof this.ctx.fillRect === 'function') {
+      this.ctx.fillRect(closeBtnX, closeBtnY, closeBtnSize, closeBtnSize);
+    }
+    this.ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+    if (typeof this.ctx.strokeRect === 'function') {
+      this.ctx.strokeRect(closeBtnX + 0.5, closeBtnY + 0.5, closeBtnSize - 1, closeBtnSize - 1);
+    }
+    this.ctx.fillStyle = '#fca5a5';
+    this.ctx.font = 'bold 10px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    if (typeof this.ctx.fillText === 'function') {
+      this.ctx.fillText('X', closeBtnX + closeBtnSize / 2, closeBtnY + closeBtnSize / 2);
+    }
+
+    // 3. Grid de 20 slots (5 colunas x 4 linhas)
+    const gridStartX = panelX + panelPaddingX;
+    const gridStartY = panelY + headerHeight;
+    const selectedHotbarSlot = hotbar.getSelectedSlotIndex();
+
+    for (let i = 0; i < totalSlots; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const slotX = gridStartX + col * (slotSize + gap);
+      const slotY = gridStartY + row * (slotSize + gap);
+
+      const isHotbarSlot = i < hotbar.getSlotCount();
+      const isSelectedHotbar = isHotbarSlot && i === selectedHotbarSlot;
+      const isDragged = i === draggedSlotIndex;
+      const isHoveredTarget = draggedSlotIndex !== null && i === hoveredSlotIndex && i !== draggedSlotIndex;
+      const isSelected = i === selectedSlotIndex;
+      const stack = allSlots[i];
+
+      // Fundo do slot
+      if (isHoveredTarget) {
+        this.ctx.fillStyle = 'rgba(14, 165, 233, 0.45)'; // Realce azul para alvo de drop
+      } else if (isSelected) {
+        this.ctx.fillStyle = 'rgba(234, 179, 8, 0.35)'; // Realce amarelo para seleção ativa
+      } else if (isSelectedHotbar) {
+        this.ctx.fillStyle = 'rgba(30, 58, 138, 0.95)';
+      } else {
+        this.ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      }
+      if (typeof this.ctx.fillRect === 'function') {
+        this.ctx.fillRect(slotX, slotY, slotSize, slotSize);
+      }
+
+      // Borda do slot
+      if (isHoveredTarget) {
+        this.ctx.strokeStyle = '#38bdf8'; // Azul claro brilhante para drop target
+        this.ctx.lineWidth = 2;
+      } else if (isSelected) {
+        this.ctx.strokeStyle = '#facc15'; // Amarelo brilhante para seleção
+        this.ctx.lineWidth = 2;
+      } else if (isSelectedHotbar) {
+        this.ctx.strokeStyle = '#fbbf24'; // Dourado para o slot ativo da hotbar
+        this.ctx.lineWidth = 2;
+      } else if (isHotbarSlot) {
+        this.ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)'; // Azul suave para indicar slots da hotbar
+        this.ctx.lineWidth = 1;
+      } else {
+        this.ctx.strokeStyle = 'rgba(71, 85, 105, 0.8)';
+        this.ctx.lineWidth = 1;
+      }
+      if (typeof this.ctx.strokeRect === 'function') {
+        this.ctx.strokeRect(slotX + 0.5, slotY + 0.5, slotSize - 1, slotSize - 1);
+      }
+
+      // Número do slot no canto superior esquerdo
+      this.ctx.fillStyle = isSelectedHotbar ? '#fbbf24' : (isHotbarSlot ? '#38bdf8' : 'rgba(148, 163, 184, 0.7)');
+      this.ctx.font = 'bold 8px monospace';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'top';
+      if (typeof this.ctx.fillText === 'function') {
+        this.ctx.fillText(`${i + 1}`, slotX + 2, slotY + 2);
+      }
+
+      // Ícone do item via ItemIconRenderer
+      if (stack) {
+        const itemDef = ItemRegistry.get(stack.itemId);
+
+        // Se este slot estiver sendo arrastado, renderiza com transparência (fantasma de origem)
+        if (isDragged) {
+          if (typeof this.ctx.save === 'function') this.ctx.save();
+          this.ctx.globalAlpha = 0.35;
+          ItemIconRenderer.renderIcon(this.ctx, itemDef, slotX + 10, slotY + 10, 16);
+          if (typeof this.ctx.restore === 'function') this.ctx.restore();
+        } else {
+          ItemIconRenderer.renderIcon(this.ctx, itemDef, slotX + 10, slotY + 10, 16);
+        }
+
+        // Quantidade no canto inferior direito
+        this.ctx.fillStyle = '#000000';
+        this.ctx.font = 'bold 9px monospace';
+        this.ctx.textAlign = 'right';
+        this.ctx.textBaseline = 'bottom';
+        if (typeof this.ctx.fillText === 'function') {
+          this.ctx.fillText(`${stack.quantity}`, slotX + slotSize, slotY + slotSize);
+          this.ctx.fillStyle = isDragged ? 'rgba(248, 250, 252, 0.4)' : '#f8fafc';
+          this.ctx.fillText(`${stack.quantity}`, slotX + slotSize - 1, slotY + slotSize - 1);
+        }
+      }
+    }
+
+    // 4. Rodapé informativo
+    this.ctx.fillStyle = '#94a3b8';
+    this.ctx.font = '8px monospace';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    if (typeof this.ctx.fillText === 'function') {
+      this.ctx.fillText('[I] ou [X] fechar • Arraste para mover', panelX + panelWidth / 2, panelY + panelHeight - 10);
+    }
+
+    // 5. Renderizar o item flutuante sob o cursor/dedo sendo arrastado
+    if (draggedSlotIndex !== null && dragPos !== null) {
+      const draggedStack = allSlots[draggedSlotIndex];
+      if (draggedStack) {
+        const itemDef = ItemRegistry.get(draggedStack.itemId);
+        const boxSize = 30;
+        const iconSize = 20;
+        const drawX = Math.round(dragPos.x - boxSize / 2);
+        const drawY = Math.round(dragPos.y - boxSize / 2);
+
+        // Fundo destacado com borda dourada para o item flutuante
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+        if (typeof this.ctx.fillRect === 'function') {
+          this.ctx.fillRect(drawX, drawY, boxSize, boxSize);
+        }
+        this.ctx.strokeStyle = '#fbbf24';
+        this.ctx.lineWidth = 2;
+        if (typeof this.ctx.strokeRect === 'function') {
+          this.ctx.strokeRect(drawX + 1, drawY + 1, boxSize - 2, boxSize - 2);
+        }
+
+        ItemIconRenderer.renderIcon(
+          this.ctx,
+          itemDef,
+          drawX + (boxSize - iconSize) / 2,
+          drawY + (boxSize - iconSize) / 2,
+          iconSize,
+        );
+
+        // Quantidade em destaque
+        if (draggedStack.quantity > 1 && typeof this.ctx.fillText === 'function') {
+          this.ctx.fillStyle = '#000000';
+          this.ctx.font = 'bold 10px monospace';
+          this.ctx.textAlign = 'right';
+          this.ctx.textBaseline = 'bottom';
+          this.ctx.fillText(`${draggedStack.quantity}`, drawX + boxSize, drawY + boxSize);
+          this.ctx.fillStyle = '#fef08a';
+          this.ctx.fillText(`${draggedStack.quantity}`, drawX + boxSize - 1, drawY + boxSize - 1);
+        }
+      }
+    }
+
+    if (typeof this.ctx.restore === 'function') this.ctx.restore();
+  }
+
+  /**
+   * Retorna os limites do botão INV próximo à Hotbar.
+   */
+  public getHotbarInventoryButtonBounds(player: Player): { x: number; y: number; width: number; height: number } {
+    const slotCount = player.hotbar.getSlotCount();
+    const slotSize = 36;
+    const gap = 4;
+    const totalWidth = slotCount * slotSize + (slotCount - 1) * gap;
+    const startX = Math.round((this.width - totalWidth) / 2);
+    const startY = this.height - slotSize - 12;
+
+    const btnWidth = 32;
+    const btnHeight = slotSize;
+
+    if (this.width >= totalWidth + (btnWidth + 12) * 2) {
+      // Espaço amplo: à direita da hotbar
+      return { x: startX + totalWidth + 8, y: startY, width: btnWidth, height: btnHeight };
+    } else {
+      // Espaço compacto em telas estreitas: posicionado logo acima do último slot
+      return { x: startX + totalWidth - btnWidth, y: startY - 26, width: btnWidth, height: 22 };
+    }
+  }
+
+  /**
+   * Verifica se o clique/toque atingiu o botão INV da Hotbar.
+   */
+  public getHotbarInventoryButtonAt(screenX: number, screenY: number, player: Player): boolean {
+    const b = this.getHotbarInventoryButtonBounds(player);
+    return screenX >= b.x - 4 && screenX <= b.x + b.width + 4 && screenY >= b.y - 4 && screenY <= b.y + b.height + 4;
+  }
+
+  /**
+   * Retorna os limites do painel modal do Inventário na tela.
+   */
+  public getInventoryPanelBounds(): { x: number; y: number; width: number; height: number } {
+    const cols = 5;
+    const rows = 4;
+    const slotSize = 36;
+    const gap = 4;
+    const gridWidth = cols * slotSize + (cols - 1) * gap;
+    const gridHeight = rows * slotSize + (rows - 1) * gap;
+    const panelPaddingX = 14;
+    const headerHeight = 28;
+    const footerHeight = 20;
+    const panelWidth = gridWidth + panelPaddingX * 2;
+    const panelHeight = headerHeight + gridHeight + footerHeight + 6;
+    const panelX = Math.round((this.width - panelWidth) / 2);
+    const panelY = Math.round((this.height - panelHeight) / 2);
+    return { x: panelX, y: panelY, width: panelWidth, height: panelHeight };
+  }
+
+  /**
+   * Verifica se a coordenada está contida dentro do painel do Inventário.
+   */
+  public isInsideInventoryPanel(screenX: number, screenY: number): boolean {
+    const b = this.getInventoryPanelBounds();
+    return screenX >= b.x && screenX <= b.x + b.width && screenY >= b.y && screenY <= b.y + b.height;
+  }
+
+  /**
+   * Verifica se o clique atingiu o botão [X] de fechar no painel do Inventário.
+   */
+  public getInventoryCloseButtonAt(screenX: number, screenY: number): boolean {
+    const b = this.getInventoryPanelBounds();
+    const closeBtnX = b.x + b.width - 22;
+    const closeBtnY = b.y + 6;
+    const size = 16;
+    return screenX >= closeBtnX - 4 && screenX <= closeBtnX + size + 4 && screenY >= closeBtnY - 4 && screenY <= closeBtnY + size + 4;
+  }
+
+  /**
+   * Retorna as coordenadas e dimensões de determinado slot do inventário na tela.
+   */
+  public getInventorySlotBounds(slotIndex: number): { x: number; y: number; width: number; height: number } | null {
+    if (slotIndex < 0 || slotIndex >= 20) return null;
+    const b = this.getInventoryPanelBounds();
+    const cols = 5;
+    const slotSize = 36;
+    const gap = 4;
+    const gridStartX = b.x + 14;
+    const gridStartY = b.y + 28;
+    const col = slotIndex % cols;
+    const row = Math.floor(slotIndex / cols);
+    const slotX = gridStartX + col * (slotSize + gap);
+    const slotY = gridStartY + row * (slotSize + gap);
+    return { x: slotX, y: slotY, width: slotSize, height: slotSize };
+  }
+
+  /**
+   * Identifica qual slot do Inventário foi clicado/tocado (0 a 19), ou null.
+   * Inclui tolerância de metade do espaçamento entre slots para eliminar zonas mortas no arrasto.
+   */
+  public getInventorySlotAt(screenX: number, screenY: number): number | null {
+    const b = this.getInventoryPanelBounds();
+    const cols = 5;
+    const slotSize = 36;
+    const gap = 4;
+    const halfGap = gap / 2;
+    const gridStartX = b.x + 14;
+    const gridStartY = b.y + 28;
+
+    for (let i = 0; i < 20; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const slotX = gridStartX + col * (slotSize + gap);
+      const slotY = gridStartY + row * (slotSize + gap);
+
+      if (
+        screenX >= slotX - halfGap &&
+        screenX < slotX + slotSize + halfGap &&
+        screenY >= slotY - halfGap &&
+        screenY < slotY + slotSize + halfGap
+      ) {
+        return i;
+      }
+    }
+    return null;
   }
 
   /**

@@ -14,6 +14,7 @@ export class Input implements InputSource {
     break: ['break', 'KeyX', 'x'],
     interact: ['interact', 'KeyE', 'e', 'Space', ' ', 'Enter'],
     use_item: ['use_item', 'KeyF', 'f', 'KeyC', 'c', 'KeyJ', 'j'],
+    toggle_inventory: ['toggle_inventory', 'KeyI', 'i'],
     next_slot: ['next_slot', 'BracketRight', ']'],
     prev_slot: ['prev_slot', 'BracketLeft', '['],
     slot_1: ['slot_1', 'Digit1', '1', 'Numpad1'],

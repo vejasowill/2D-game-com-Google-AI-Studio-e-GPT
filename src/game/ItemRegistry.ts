@@ -16,6 +16,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'material',
     spriteAssetId: 'item_wood',
     description: 'Pedaço de madeira bruta para construção e utilidades.',
+    icon: { kind: 'wood' },
   },
   {
     id: 'stone',
@@ -24,6 +25,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'material',
     spriteAssetId: 'item_stone',
     description: 'Fragmento rochoso resistente.',
+    icon: { kind: 'stone' },
   },
   {
     id: 'flower',
@@ -32,6 +34,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'flora',
     spriteAssetId: 'item_flower',
     description: 'Pequena flor do campo aromática e decorativa.',
+    icon: { kind: 'flower' },
   },
   {
     id: 'axe',
@@ -40,6 +43,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'tool',
     spriteAssetId: 'item_axe',
     description: 'Ferramenta de corte para obter madeira de árvores.',
+    icon: { kind: 'axe' },
     useDefinition: {
       action: 'chop',
       range: 36,
@@ -55,6 +59,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'tool',
     spriteAssetId: 'item_hoe',
     description: 'Ferramenta para cultivar e preparar o solo para plantio.',
+    icon: { kind: 'hoe' },
     useDefinition: {
       action: 'till',
       range: 48,
@@ -70,6 +75,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'watering_can',
     spriteAssetId: 'item_watering_can',
     description: 'Ferramenta para irrigar e regar culturas agrícolas plantadas.',
+    icon: { kind: 'watering_can' },
     useDefinition: {
       action: 'water',
       range: 48,
@@ -87,6 +93,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'seed',
     spriteAssetId: 'item_turnip_seed',
     description: 'Semente para plantio de nabos em solo arado (tilled soil).',
+    icon: { kind: 'seed' },
     useDefinition: {
       action: 'plant',
       range: 48,
@@ -104,6 +111,7 @@ export const DEFAULT_TECHNICAL_ITEMS: readonly ItemDefinition[] = Object.freeze(
     category: 'flora',
     spriteAssetId: 'item_turnip',
     description: 'Um nabo fresco cultivado.',
+    icon: { kind: 'turnip' },
   },
 ]);
 

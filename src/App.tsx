@@ -77,6 +77,7 @@ export default function App() {
           <div className="font-semibold text-amber-400 mb-0.5">Controles PC:</div>
           <div>WASD / Setas: Mover</div>
           <div>[E]: Interagir | [F]: Ferramenta</div>
+          <div>[I]: Inventário</div>
           <div>1-8 / Toque: Hotbar</div>
         </div>
       )}

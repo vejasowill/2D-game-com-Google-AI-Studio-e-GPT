@@ -45,9 +45,17 @@ export class Game {
   private renderer: Renderer;
   private loop: GameLoop;
   private canvas: HTMLCanvasElement;
+  private isInventoryOpen: boolean = false;
+  private draggedSlotIndex: number | null = null;
+  private dragPos: { x: number; y: number } | null = null;
+  private hoveredSlotIndex: number | null = null;
+  private selectedInventorySlotIndex: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private handleWindowResize: (() => void) | null = null;
   private handlePointerDown: ((event: PointerEvent) => void) | null = null;
+  private handlePointerMove: ((event: PointerEvent) => void) | null = null;
+  private handlePointerUp: ((event: PointerEvent) => void) | null = null;
+  private handlePointerCancel: ((event: PointerEvent) => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -180,6 +188,84 @@ export class Game {
     return this.restSystem;
   }
 
+  public getIsInventoryOpen(): boolean {
+    return this.isInventoryOpen;
+  }
+
+  public toggleInventory(): void {
+    this.setInventoryOpen(!this.isInventoryOpen);
+  }
+
+  public setInventoryOpen(open: boolean): void {
+    this.isInventoryOpen = open;
+    if (!open) {
+      this.cancelInventoryDrag();
+    }
+  }
+
+  public getDraggedSlotIndex(): number | null {
+    return this.draggedSlotIndex;
+  }
+
+  public getDragPos(): { x: number; y: number } | null {
+    return this.dragPos ? { ...this.dragPos } : null;
+  }
+
+  public getHoveredSlotIndex(): number | null {
+    return this.hoveredSlotIndex;
+  }
+
+  public getSelectedInventorySlotIndex(): number | null {
+    return this.selectedInventorySlotIndex;
+  }
+
+  public cancelInventoryDrag(): void {
+    this.draggedSlotIndex = null;
+    this.dragPos = null;
+    this.hoveredSlotIndex = null;
+    this.selectedInventorySlotIndex = null;
+  }
+
+  public handleInventoryDragStart(slotIndex: number, screenX: number, screenY: number): boolean {
+    if (!this.isInventoryOpen) return false;
+    if (!this.player.inventory.isValidSlotIndex(slotIndex)) return false;
+
+    const stack = this.player.inventory.getSlot(slotIndex);
+    if (!stack) return false;
+
+    this.draggedSlotIndex = slotIndex;
+    this.dragPos = { x: screenX, y: screenY };
+    this.hoveredSlotIndex = slotIndex;
+    return true;
+  }
+
+  public handleInventoryDragMove(screenX: number, screenY: number): void {
+    if (!this.isInventoryOpen || this.draggedSlotIndex === null) return;
+
+    this.dragPos = { x: screenX, y: screenY };
+    this.hoveredSlotIndex = this.renderer.getInventorySlotAt(screenX, screenY);
+  }
+
+  public handleInventoryDragEnd(screenX: number, screenY: number): boolean {
+    if (!this.isInventoryOpen || this.draggedSlotIndex === null) {
+      this.cancelInventoryDrag();
+      return false;
+    }
+
+    const fromSlot = this.draggedSlotIndex;
+    const targetSlot = this.renderer.getInventorySlotAt(screenX, screenY);
+
+    let moved = false;
+    if (targetSlot !== null && targetSlot !== fromSlot) {
+      moved = this.player.inventory.swapSlots(fromSlot, targetSlot);
+    }
+
+    this.draggedSlotIndex = null;
+    this.dragPos = null;
+    this.hoveredSlotIndex = null;
+    return moved;
+  }
+
   public getHudState(): HudState {
     return calculateHudState(this.world, this.player);
   }
@@ -197,9 +283,24 @@ export class Game {
 
     this.input.destroy();
 
-    if (this.handlePointerDown) {
+    if (this.handlePointerDown && typeof this.canvas.removeEventListener === 'function') {
       this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
       this.handlePointerDown = null;
+    }
+
+    if (this.handlePointerMove && typeof window !== 'undefined') {
+      window.removeEventListener('pointermove', this.handlePointerMove);
+      this.handlePointerMove = null;
+    }
+
+    if (this.handlePointerUp && typeof window !== 'undefined') {
+      window.removeEventListener('pointerup', this.handlePointerUp);
+      this.handlePointerUp = null;
+    }
+
+    if (this.handlePointerCancel && typeof window !== 'undefined') {
+      window.removeEventListener('pointercancel', this.handlePointerCancel);
+      this.handlePointerCancel = null;
     }
 
     if (this.resizeObserver) {
@@ -207,7 +308,7 @@ export class Game {
       this.resizeObserver = null;
     }
 
-    if (this.handleWindowResize) {
+    if (this.handleWindowResize && typeof window !== 'undefined') {
       window.removeEventListener('resize', this.handleWindowResize);
       this.handleWindowResize = null;
     }
@@ -259,6 +360,14 @@ export class Game {
       deltaTime,
     );
 
+    // 6.7. Alternar o painel de observabilidade do Inventário se solicitado
+    if (this.input.isActionJustPressed('toggle_inventory')) {
+      this.toggleInventory();
+    }
+
+    // 6.8. Atualizar timers de apresentação da HUD (tooltip temporário do item selecionado)
+    this.renderer.update(deltaTime, this.player);
+
     // 7. Limpar estado transitório de teclas pressionadas no frame (ação discreta)
     this.input.clearFrameState();
 
@@ -276,16 +385,23 @@ export class Game {
       this.interactionSystem,
       this.itemUseSystem,
       this.tileSelectionSystem,
+      this.isInventoryOpen,
+      this.draggedSlotIndex,
+      this.dragPos,
+      this.hoveredSlotIndex,
+      this.selectedInventorySlotIndex,
     );
   }
 
   private setupResize(canvas: HTMLCanvasElement): void {
-    this.handleWindowResize = () => {
-      this.renderer.resize();
-    };
-    window.addEventListener('resize', this.handleWindowResize);
+    if (typeof window !== 'undefined') {
+      this.handleWindowResize = () => {
+        this.renderer.resize();
+      };
+      window.addEventListener('resize', this.handleWindowResize);
+    }
 
-    if (canvas.parentElement) {
+    if (canvas.parentElement && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => {
         this.renderer.resize();
       });
@@ -301,22 +417,151 @@ export class Game {
       const viewport = this.renderer.getViewportSize();
       const screenX = (event.clientX - rect.left) * (viewport.width / rect.width);
       const screenY = (event.clientY - rect.top) * (viewport.height / rect.height);
-      const clickedSlot = this.renderer.getHotbarSlotAt(screenX, screenY, this.player);
 
+      // Tratamento prioritário caso o painel do Inventário esteja aberto
+      if (this.isInventoryOpen) {
+        // 1. Clique no botão de fechar [X]
+        if (this.renderer.getInventoryCloseButtonAt(screenX, screenY)) {
+          this.setInventoryOpen(false);
+          return;
+        }
+
+        // 2. Clique em um dos 20 slots do inventário
+        const clickedInvSlot = this.renderer.getInventorySlotAt(screenX, screenY);
+        if (clickedInvSlot !== null) {
+          // Se for um dos primeiros slots pertencentes à Hotbar (0 a 7), seleciona-o para uso rápido
+          if (clickedInvSlot < this.player.hotbar.getSlotCount()) {
+            this.player.hotbar.setSelectedSlot(clickedInvSlot);
+          }
+
+          // Se o slot possui um item, inicia imediatamente o arrasto (drag and drop)
+          const stack = this.player.inventory.getSlot(clickedInvSlot);
+          if (stack !== null) {
+            this.handleInventoryDragStart(clickedInvSlot, screenX, screenY);
+            if (typeof canvas.setPointerCapture === 'function') {
+              try {
+                canvas.setPointerCapture(event.pointerId);
+              } catch {
+                // Ignore se não suportado
+              }
+            }
+          } else {
+            // Se clicou em slot vazio e havia um slot selecionado anteriormente por clique
+            if (this.selectedInventorySlotIndex !== null) {
+              this.player.inventory.swapSlots(this.selectedInventorySlotIndex, clickedInvSlot);
+              this.selectedInventorySlotIndex = null;
+            }
+          }
+          return;
+        }
+
+        // 3. Clique dentro da área da janela modal consome o evento sem fechar
+        if (this.renderer.isInsideInventoryPanel(screenX, screenY)) {
+          this.selectedInventorySlotIndex = null;
+          return;
+        }
+
+        // 4. Clique fora da janela modal fecha o inventário (experiência intuitiva e padrão)
+        this.setInventoryOpen(false);
+        return;
+      }
+
+      // 1. Verifica se o clique atingiu o botão [INV] da Hotbar
+      if (this.renderer.getHotbarInventoryButtonAt(screenX, screenY, this.player)) {
+        this.toggleInventory();
+        return;
+      }
+
+      // 2. Verifica se o clique atingiu um slot da Hotbar
+      const clickedSlot = this.renderer.getHotbarSlotAt(screenX, screenY, this.player);
       if (clickedSlot !== null) {
         this.player.hotbar.setSelectedSlot(clickedSlot);
-      } else {
-        // Seleção de célula do terreno (toque no mobile ou clique no desktop)
-        const selectedTile = this.tileSelectionSystem.screenToTileCoord(
-          { screenX, screenY },
-          viewport,
-          this.camera,
-          this.world,
-        );
-        this.tileSelectionSystem.selectTile(selectedTile);
+        return;
+      }
+
+      // 3. Seleção de célula do terreno (toque no mobile ou clique no desktop)
+      const selectedTile = this.tileSelectionSystem.screenToTileCoord(
+        { screenX, screenY },
+        viewport,
+        this.camera,
+        this.world,
+      );
+      this.tileSelectionSystem.selectTile(selectedTile);
+    };
+
+    this.handlePointerMove = (event: PointerEvent) => {
+      if (!this.isInventoryOpen || this.draggedSlotIndex === null) return;
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const viewport = this.renderer.getViewportSize();
+      const screenX = (event.clientX - rect.left) * (viewport.width / rect.width);
+      const screenY = (event.clientY - rect.top) * (viewport.height / rect.height);
+
+      this.handleInventoryDragMove(screenX, screenY);
+    };
+
+    this.handlePointerUp = (event: PointerEvent) => {
+      if (!this.isInventoryOpen || this.draggedSlotIndex === null) return;
+
+      if (typeof canvas.releasePointerCapture === 'function') {
+        try {
+          canvas.releasePointerCapture(event.pointerId);
+        } catch {
+          // Ignore
+        }
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        this.cancelInventoryDrag();
+        return;
+      }
+
+      const viewport = this.renderer.getViewportSize();
+      const screenX = (event.clientX - rect.left) * (viewport.width / rect.width);
+      const screenY = (event.clientY - rect.top) * (viewport.height / rect.height);
+
+      const fromSlot = this.draggedSlotIndex;
+      const targetSlot = this.renderer.getInventorySlotAt(screenX, screenY);
+
+      // Finaliza o arrasto e realiza a troca/fusão no inventário real
+      const moved = this.handleInventoryDragEnd(screenX, screenY);
+
+      // Suporte complementar a clique simples: se soltou no mesmo slot de origem sem mover para outro
+      if (!moved && targetSlot === fromSlot) {
+        if (this.selectedInventorySlotIndex === null) {
+          this.selectedInventorySlotIndex = fromSlot;
+        } else if (this.selectedInventorySlotIndex === fromSlot) {
+          this.selectedInventorySlotIndex = null;
+        } else {
+          this.player.inventory.swapSlots(this.selectedInventorySlotIndex, fromSlot);
+          this.selectedInventorySlotIndex = null;
+        }
+      } else if (moved) {
+        this.selectedInventorySlotIndex = null;
       }
     };
 
-    canvas.addEventListener('pointerdown', this.handlePointerDown);
+    this.handlePointerCancel = (event: PointerEvent) => {
+      if (typeof canvas.releasePointerCapture === 'function') {
+        try {
+          canvas.releasePointerCapture(event.pointerId);
+        } catch {
+          // Ignore
+        }
+      }
+      this.cancelInventoryDrag();
+    };
+
+    if (typeof canvas.addEventListener === 'function') {
+      canvas.addEventListener('pointerdown', this.handlePointerDown);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', this.handlePointerMove);
+      window.addEventListener('pointerup', this.handlePointerUp);
+      window.addEventListener('pointercancel', this.handlePointerCancel);
+    }
   }
 }

@@ -162,7 +162,7 @@ export function MobileControls({ input }: MobileControlsProps) {
   // =========================================================================
 
   const handleActionDown = useCallback(
-    (action: 'interact' | 'use_item' | 'place' | 'break', e: React.PointerEvent) => {
+    (action: 'interact' | 'use_item' | 'place' | 'break' | 'toggle_inventory', e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!input) return;
@@ -172,7 +172,7 @@ export function MobileControls({ input }: MobileControlsProps) {
   );
 
   const handleActionUp = useCallback(
-    (action: 'interact' | 'use_item' | 'place' | 'break', e: React.PointerEvent) => {
+    (action: 'interact' | 'use_item' | 'place' | 'break' | 'toggle_inventory', e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!input) return;

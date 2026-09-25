@@ -1,4 +1,5 @@
 import { ItemUseDefinition } from './ItemUseTypes.ts';
+import { ItemIconDefinition } from './ItemIconTypes.ts';
 
 /**
  * Categoria genérica opcional de um item.
@@ -15,6 +16,7 @@ export type ItemCategory = 'material' | 'flora' | 'consumable' | 'tool' | 'seed'
  * 3. NÃO contém lógica de inventário, combate, ferramentas ou crafting acoplada.
  * 4. spriteAssetId é uma referência simbólica que pode ou não ter um asset carregado no AssetManager.
  * 5. useDefinition declara o comportamento de uso do item de forma genérica e extensível.
+ * 6. icon declara a representação visual procedimental/identificável do ícone do item.
  */
 export interface ItemDefinition {
   /** Identificador único, estável e canônico do item (ex: 'wood', 'stone', 'flower', 'axe') */
@@ -37,6 +39,9 @@ export interface ItemDefinition {
 
   /** Definição declarativa opcional do comportamento de uso deste item */
   readonly useDefinition?: ItemUseDefinition;
+
+  /** Metadados visuais declarativos para ícone de Hotbar e Inventário */
+  readonly icon?: ItemIconDefinition;
 }
 
 /**
