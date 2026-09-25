@@ -12,6 +12,7 @@ import { TileSelectionSystem } from './TileSelectionSystem.ts';
 import { World } from './World.ts';
 import { WorldObject } from './WorldObject.ts';
 import { TileType, ViewportSize } from './types.ts';
+import { calculateHudState, HudState } from './HudState.ts';
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -56,7 +57,9 @@ export class Renderer {
       this.canvas.style.height = `${displayHeight}px`;
     }
 
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (typeof this.ctx.setTransform === 'function') {
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     // Reafirma estritamente a desativação de suavização de pixel art após redimensionamento do Canvas
     this.spriteRenderer.enforcePixelArtSmoothing();
@@ -180,7 +183,9 @@ export class Renderer {
           screenPos.screenY + TILE_SIZE >= 0 &&
           screenPos.screenY <= this.height
         ) {
-          this.ctx.save();
+          if (typeof this.ctx.save === 'function') {
+            this.ctx.save();
+          }
           this.ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)'; // Amarelo discreto/sóbrio
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(
@@ -189,7 +194,9 @@ export class Renderer {
             TILE_SIZE - 1,
             TILE_SIZE - 1,
           );
-          this.ctx.restore();
+          if (typeof this.ctx.restore === 'function') {
+            this.ctx.restore();
+          }
         }
       }
     }
@@ -236,6 +243,9 @@ export class Renderer {
 
     // 6. Renderizar HUD técnico mínimo da Hotbar (barra de slots discretos com destaque de seleção)
     this.renderHotbar(player);
+
+    // 7. Renderizar HUD técnico mínimo de Tempo e Energia
+    this.renderHud(world, player);
   }
 
   /**
@@ -819,5 +829,118 @@ export class Renderer {
         break;
       }
     }
+  }
+
+  /**
+   * Renderiza a HUD mínima persistente de Tempo (Dia/Horário) e Energia (barra compacta).
+   *
+   * Princípios técnicos:
+   * 1. Consulta estritamente os sistemas existentes (TimeSystem e EnergySystem);
+   * 2. Zero relógio próprio, zero Date.now() / performance.now();
+   * 3. Desenho em Pixel Art com coordenadas inteiras estritas;
+   * 4. Posicionado no canto superior direito para não interferir com controles ou gameplay;
+   * 5. Extremamente compacto e leve.
+   */
+  public renderHud(world: World, player: Player): void {
+    const hudState = calculateHudState(world, player);
+    const hudWidth = 132;
+    const hudHeight = 34;
+
+    // Posicionamento: topo direito, com margem de 86px da borda direita para deixar espaço para o botão Fullscreen
+    const hudX = Math.max(10, this.width - hudWidth - 86);
+    const hudY = 10;
+
+    if (typeof this.ctx.save === 'function') {
+      this.ctx.save();
+    }
+
+    // Fundo escuro translúcido compatível com pixel art
+    this.ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    if (typeof this.ctx.fillRect === 'function') {
+      this.ctx.fillRect(hudX, hudY, hudWidth, hudHeight);
+    }
+    this.ctx.strokeStyle = 'rgba(51, 65, 85, 0.8)';
+    this.ctx.lineWidth = 1;
+    if (typeof this.ctx.strokeRect === 'function') {
+      this.ctx.strokeRect(hudX + 0.5, hudY + 0.5, hudWidth - 1, hudHeight - 1);
+    }
+
+    // 1. Linha de Tempo: "DIA <day>  •  <HH:MM>"
+    const timeText = `DIA ${hudState.day}  •  ${hudState.formattedTime}`;
+    this.ctx.font = 'bold 10px monospace';
+    this.ctx.textBaseline = 'top';
+    this.ctx.textAlign = 'left';
+
+    // Sombra sutil de texto para nitidez pixel art
+    this.ctx.fillStyle = '#0f172a';
+    if (typeof this.ctx.fillText === 'function') {
+      this.ctx.fillText(timeText, hudX + 9, hudY + 5);
+      this.ctx.fillStyle = '#38bdf8';
+      this.ctx.fillText(timeText, hudX + 8, hudY + 4);
+    }
+
+    // 2. Linha de Energia: Rótulo e Valores numéricos
+    const energyLabel = 'ENERGIA';
+    const energyValue = `${Math.round(hudState.currentEnergy)}/${hudState.maximumEnergy}`;
+
+    this.ctx.font = 'bold 8px monospace';
+    this.ctx.textBaseline = 'top';
+
+    if (typeof this.ctx.fillText === 'function') {
+      // Rótulo "ENERGIA"
+      this.ctx.textAlign = 'left';
+      this.ctx.fillStyle = '#94a3b8';
+      this.ctx.fillText(energyLabel, hudX + 8, hudY + 16);
+
+      // Valor numérico "100/100" à direita
+      this.ctx.textAlign = 'right';
+      this.ctx.fillStyle = '#e2e8f0';
+      this.ctx.fillText(energyValue, hudX + hudWidth - 8, hudY + 16);
+    }
+
+    // 3. Barra compacta de Energia
+    const barX = hudX + 8;
+    const barY = hudY + 26;
+    const barWidth = hudWidth - 16;
+    const barHeight = 4;
+
+    // Fundo da barra
+    this.ctx.fillStyle = '#0f172a';
+    if (typeof this.ctx.fillRect === 'function') {
+      this.ctx.fillRect(barX, barY, barWidth, barHeight);
+    }
+    this.ctx.strokeStyle = '#334155';
+    this.ctx.lineWidth = 1;
+    if (typeof this.ctx.strokeRect === 'function') {
+      this.ctx.strokeRect(barX - 0.5, barY - 0.5, barWidth + 1, barHeight + 1);
+    }
+
+    // Preenchimento proporcional
+    const fillWidth = Math.max(0, Math.min(barWidth, Math.round(barWidth * hudState.energyPercentage)));
+    if (fillWidth > 0 && typeof this.ctx.fillRect === 'function') {
+      if (hudState.energyPercentage > 0.5) {
+        this.ctx.fillStyle = '#22c55e'; // Verde para energia alta
+      } else if (hudState.energyPercentage > 0.2) {
+        this.ctx.fillStyle = '#eab308'; // Âmbar para energia média
+      } else {
+        this.ctx.fillStyle = '#ef4444'; // Vermelho para energia baixa
+      }
+      this.ctx.fillRect(barX, barY, fillWidth, barHeight);
+    }
+
+    if (typeof this.ctx.restore === 'function') {
+      this.ctx.restore();
+    }
+  }
+
+  /**
+   * Retorna os limites do HUD na tela para cálculo de layout e testes.
+   */
+  public getHudBounds(): { x: number; y: number; width: number; height: number } {
+    const hudWidth = 132;
+    const hudHeight = 34;
+    const hudX = Math.max(10, this.width - hudWidth - 86);
+    const hudY = 10;
+    return { x: hudX, y: hudY, width: hudWidth, height: hudHeight };
   }
 }

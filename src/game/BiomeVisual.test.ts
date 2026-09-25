@@ -228,6 +228,8 @@ export function runBiomeVisualTests(): void {
       lineTo: () => {},
       closePath: () => {},
       fillText: () => {},
+      save: () => {},
+      restore: () => {},
       fillStyle: '',
       strokeStyle: '',
       lineWidth: 1,

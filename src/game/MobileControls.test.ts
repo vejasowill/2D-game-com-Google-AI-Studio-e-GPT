@@ -173,6 +173,8 @@ ItemRegistry.ensureInitialized();
     parentElement: null,
     style: {},
     getContext: () => ({
+      save: () => {},
+      restore: () => {},
       fillRect: () => {},
       strokeRect: () => {},
       setTransform: () => {},

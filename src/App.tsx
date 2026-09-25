@@ -7,10 +7,41 @@ import { useEffect, useRef, useState } from 'react';
 import { Game } from './game/Game.ts';
 import { Input } from './game/Input.ts';
 import { MobileControls } from './ui/MobileControls.tsx';
+import { isTouchOrMobileEnvironment } from './ui/inputContext.ts';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [inputInstance, setInputInstance] = useState<Input | null>(null);
+  const [isTouchEnvironment, setIsTouchEnvironment] = useState<boolean>(() => isTouchOrMobileEnvironment());
+
+  useEffect(() => {
+    // Detecta dinamicamente a primeira interação por toque ou ponteiro de toque caso o hardware suporte
+    const handleTouchDetected = () => {
+      setIsTouchEnvironment(true);
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+        setIsTouchEnvironment(true);
+      }
+    };
+
+    const handleResize = () => {
+      if (isTouchOrMobileEnvironment()) {
+        setIsTouchEnvironment(true);
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchDetected, { passive: true });
+    window.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchDetected);
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,13 +71,15 @@ export default function App() {
       {/* Camada de Controles Móveis (Joystick, Interact, Use Item, Fullscreen) */}
       <MobileControls input={inputInstance} />
 
-      {/* Dica de atalhos de teclado (discreta no topo esquerdo para desktop) */}
-      <div className="absolute top-2.5 left-2.5 pointer-events-none bg-slate-900/80 backdrop-blur-xs border border-slate-700/60 rounded px-2 py-1 text-[10px] font-mono text-slate-300 shadow-md hidden md:block z-10">
-        <div className="font-semibold text-amber-400 mb-0.5">Controles PC:</div>
-        <div>WASD / Setas: Mover</div>
-        <div>[E]: Interagir | [F]: Ferramenta</div>
-        <div>1-8 / Toque: Hotbar</div>
-      </div>
+      {/* Dica de atalhos de teclado (exibida exclusivamente em contexto desktop/teclado, nunca em mobile/touch) */}
+      {!isTouchEnvironment && (
+        <div className="absolute top-2.5 left-2.5 pointer-events-none bg-slate-900/80 backdrop-blur-xs border border-slate-700/60 rounded px-2 py-1 text-[10px] font-mono text-slate-300 shadow-md z-10">
+          <div className="font-semibold text-amber-400 mb-0.5">Controles PC:</div>
+          <div>WASD / Setas: Mover</div>
+          <div>[E]: Interagir | [F]: Ferramenta</div>
+          <div>1-8 / Toque: Hotbar</div>
+        </div>
+      )}
     </main>
   );
 }

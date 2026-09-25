@@ -19,6 +19,7 @@ import { WateringSystem } from './WateringSystem.ts';
 import { HarvestSystem } from './HarvestSystem.ts';
 import { TimeSystem } from './TimeSystem.ts';
 import { RestSystem } from './RestSystem.ts';
+import { calculateHudState, HudState } from './HudState.ts';
 import { Player } from './Player.ts';
 import { Renderer } from './Renderer.ts';
 import { TestToggleObject } from './TestToggleObject.ts';
@@ -177,6 +178,10 @@ export class Game {
 
   public getRestSystem(): RestSystem {
     return this.restSystem;
+  }
+
+  public getHudState(): HudState {
+    return calculateHudState(this.world, this.player);
   }
 
   public start(): void {
