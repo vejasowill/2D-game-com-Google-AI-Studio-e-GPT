@@ -1253,7 +1253,7 @@ export class Renderer {
   public renderHud(world: World, player: Player): void {
     const hudState = calculateHudState(world, player);
     const hudWidth = 132;
-    const hudHeight = 34;
+    const hudHeight = 44;
 
     // Posicionamento: topo direito, com margem de 86px da borda direita para deixar espaço para o botão Fullscreen
     const hudX = Math.max(10, this.width - hudWidth - 86);
@@ -1288,30 +1288,44 @@ export class Renderer {
       this.ctx.fillText(timeText, hudX + 8, hudY + 4);
     }
 
-    // 2. Linha de Energia: Rótulo e Valores numéricos
-    const energyLabel = 'ENERGIA';
-    const energyValue = `${Math.round(hudState.currentEnergy)}/${hudState.maximumEnergy}`;
+    // 2. Indicador técnico mínimo de Vida (HP): Rótulo e Valores
+    const hpLabel = 'HP';
+    const hpValue = `${Math.round(hudState.currentHealth)}/${hudState.maximumHealth}`;
 
     this.ctx.font = 'bold 8px monospace';
     this.ctx.textBaseline = 'top';
 
     if (typeof this.ctx.fillText === 'function') {
+      this.ctx.textAlign = 'left';
+      this.ctx.fillStyle = '#f43f5e';
+      this.ctx.fillText(hpLabel, hudX + 8, hudY + 16);
+
+      this.ctx.textAlign = 'right';
+      this.ctx.fillStyle = '#fecdd3';
+      this.ctx.fillText(hpValue, hudX + hudWidth - 8, hudY + 16);
+    }
+
+    // 3. Linha de Energia: Rótulo e Valores numéricos
+    const energyLabel = 'ENERGIA';
+    const energyValue = `${Math.round(hudState.currentEnergy)}/${hudState.maximumEnergy}`;
+
+    if (typeof this.ctx.fillText === 'function') {
       // Rótulo "ENERGIA"
       this.ctx.textAlign = 'left';
       this.ctx.fillStyle = '#94a3b8';
-      this.ctx.fillText(energyLabel, hudX + 8, hudY + 16);
+      this.ctx.fillText(energyLabel, hudX + 8, hudY + 26);
 
       // Valor numérico "100/100" à direita
       this.ctx.textAlign = 'right';
       this.ctx.fillStyle = '#e2e8f0';
-      this.ctx.fillText(energyValue, hudX + hudWidth - 8, hudY + 16);
+      this.ctx.fillText(energyValue, hudX + hudWidth - 8, hudY + 26);
     }
 
-    // 3. Barra compacta de Energia
+    // 4. Barra compacta de Energia
     const barX = hudX + 8;
-    const barY = hudY + 26;
+    const barY = hudY + 36;
     const barWidth = hudWidth - 16;
-    const barHeight = 4;
+    const barHeight = 3;
 
     // Fundo da barra
     this.ctx.fillStyle = '#0f172a';
@@ -1347,7 +1361,7 @@ export class Renderer {
    */
   public getHudBounds(): { x: number; y: number; width: number; height: number } {
     const hudWidth = 132;
-    const hudHeight = 34;
+    const hudHeight = 44;
     const hudX = Math.max(10, this.width - hudWidth - 86);
     const hudY = 10;
     return { x: hudX, y: hudY, width: hudWidth, height: hudHeight };

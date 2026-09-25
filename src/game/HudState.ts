@@ -24,6 +24,15 @@ export interface HudState {
 
   /** Fração normalizada de energia [0.0, 1.0] */
   readonly energyPercentage: number;
+
+  /** Quantidade atual de vida do Player */
+  readonly currentHealth: number;
+
+  /** Quantidade máxima de vida do Player */
+  readonly maximumHealth: number;
+
+  /** Fração normalizada de vida [0.0, 1.0] */
+  readonly healthPercentage: number;
 }
 
 /**
@@ -69,6 +78,7 @@ export function calculateHudState(
   const timeSystem = world.getTimeSystem();
   const gameTime = timeSystem.getTime();
   const energy = player.getEnergy();
+  const health = player.getHealthSystem();
 
   return {
     day: gameTime.day,
@@ -77,5 +87,8 @@ export function calculateHudState(
     currentEnergy: energy.getCurrent(),
     maximumEnergy: energy.getMaximum(),
     energyPercentage: energy.getPercentage(),
+    currentHealth: health.getCurrent(),
+    maximumHealth: health.getMaximum(),
+    healthPercentage: health.getPercentage(),
   };
 }

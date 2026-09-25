@@ -16,6 +16,7 @@ export const DEFAULT_ITEM_DROP_TTL = 300; // Tempo de vida útil padrão de drop
 export const DEFAULT_HOTBAR_SLOT_COUNT = 8; // Quantidade padrão de slots rápidos na Hotbar
 
 export const DEFAULT_PLAYER_MAX_ENERGY = 100; // Quantidade padrão de energia máxima do jogador
+export const DEFAULT_PLAYER_MAX_HEALTH = 100; // Quantidade padrão de vida máxima do jogador
 
 // Custos técnicos declarativos de energia padrão para ferramentas
 export const DEFAULT_AXE_ENERGY_COST = 10;

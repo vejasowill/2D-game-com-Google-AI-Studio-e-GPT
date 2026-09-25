@@ -1,7 +1,22 @@
-import { DEFAULT_HOTBAR_SLOT_COUNT, DEFAULT_PLAYER_MAX_ENERGY, DEFAULT_PLAYER_SPEED, PLAYER_SIZE } from './constants.ts';
+import {
+  DEFAULT_HOTBAR_SLOT_COUNT,
+  DEFAULT_PLAYER_MAX_ENERGY,
+  DEFAULT_PLAYER_MAX_HEALTH,
+  DEFAULT_PLAYER_SPEED,
+  PLAYER_SIZE,
+} from './constants.ts';
 import { CollisionSystem } from './CollisionSystem.ts';
+import { DamageDefinition } from './DamageDefinition.ts';
+import {
+  DamageResult,
+  DamageResultCode,
+  DamageableTarget,
+  createDamageResult,
+} from './DamageableTarget.ts';
 import { EnergySystem } from './EnergySystem.ts';
 import { Equipment, EquippedItem } from './Equipment.ts';
+import { HealthState } from './HealthState.ts';
+import { HealthSystem } from './HealthSystem.ts';
 import { Hotbar } from './Hotbar.ts';
 import { DEFAULT_INVENTORY_SLOT_COUNT, Inventory } from './Inventory.ts';
 import { ItemStack } from './ItemStack.ts';
@@ -26,10 +41,11 @@ export enum PlayerDirection {
   RIGHT = 'right',
 }
 
-export class Player {
+export class Player implements DamageableTarget {
   public position: WorldCoord;
   public speed: number;
   public readonly size: number;
+  public readonly id: string = 'player';
   public direction: PlayerDirection = PlayerDirection.DOWN;
   public isMoving: boolean = false;
   public isUsingItem: boolean = false;
@@ -56,6 +72,9 @@ export class Player {
   /** Subsistema e estado de energia/stamina do Player (independente de física, colisão ou rendering) */
   public readonly energy: EnergySystem;
 
+  /** Subsistema e estado de vida do Player (independente de física, energia ou rendering) */
+  public readonly health: HealthSystem;
+
   constructor(
     initialPosition: WorldCoord,
     speed: number = DEFAULT_PLAYER_SPEED,
@@ -63,6 +82,7 @@ export class Player {
     inventorySlotCount: number = DEFAULT_INVENTORY_SLOT_COUNT,
     hotbarSlotCount: number = DEFAULT_HOTBAR_SLOT_COUNT,
     maxEnergy: number = DEFAULT_PLAYER_MAX_ENERGY,
+    maxHealth: number = DEFAULT_PLAYER_MAX_HEALTH,
   ) {
     this.position = { ...initialPosition };
     this.speed = speed;
@@ -71,6 +91,7 @@ export class Player {
     this.hotbar = new Hotbar(Math.min(inventorySlotCount, hotbarSlotCount));
     this.equipment = new Equipment(this.inventory, this.hotbar);
     this.energy = new EnergySystem(maxEnergy);
+    this.health = new HealthSystem(maxHealth);
   }
 
   /**
@@ -104,6 +125,94 @@ export class Player {
    */
   public getEnergySystem(): EnergySystem {
     return this.energy;
+  }
+
+  /**
+   * Retorna o snapshot imutável do estado de vida do jogador.
+   */
+  public getHealth(): HealthState {
+    return this.health.getState();
+  }
+
+  /**
+   * Retorna o subsistema de gerenciamento de vida do jogador.
+   */
+  public getHealthSystem(): HealthSystem {
+    return this.health;
+  }
+
+  /**
+   * Verifica se o jogador está vivo (current > 0).
+   */
+  public isAlive(): boolean {
+    return this.health.isAlive();
+  }
+
+  /**
+   * Verifica se o jogador pode receber determinado dano.
+   */
+  public canReceiveDamage(damage: DamageDefinition): boolean {
+    if (!this.health.isAlive()) {
+      return false;
+    }
+    if (!damage || typeof damage.amount !== 'number' || Number.isNaN(damage.amount) || damage.amount < 0) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Aplica dano ao jogador de acordo com o contrato DamageableTarget.
+   */
+  public receiveDamage(damage: DamageDefinition): DamageResult {
+    if (!this.health.isAlive()) {
+      return createDamageResult(
+        false,
+        0,
+        this.health.getCurrent(),
+        false,
+        DamageResultCode.TARGET_DEAD,
+        damage,
+        this.id,
+      );
+    }
+
+    if (!damage || typeof damage.amount !== 'number' || Number.isNaN(damage.amount) || damage.amount < 0) {
+      return createDamageResult(
+        false,
+        0,
+        this.health.getCurrent(),
+        false,
+        DamageResultCode.INVALID_DAMAGE,
+        damage,
+        this.id,
+      );
+    }
+
+    if (damage.amount === 0) {
+      return createDamageResult(
+        true,
+        0,
+        this.health.getCurrent(),
+        false,
+        DamageResultCode.NO_DAMAGE,
+        damage,
+        this.id,
+      );
+    }
+
+    const damageRes = this.health.damage(damage.amount);
+    const code = damageRes.killed ? DamageResultCode.TARGET_KILLED : DamageResultCode.DAMAGE_APPLIED;
+
+    return createDamageResult(
+      true,
+      damageRes.appliedDamage,
+      damageRes.currentHealth,
+      damageRes.killed,
+      code,
+      damage,
+      this.id,
+    );
   }
 
   /**
